@@ -1,5 +1,10 @@
 import { useState } from "react";
-import { BasemapKind } from "../map/basemaps";
+import {
+  BasemapKind,
+  BASEMAP_ORDER,
+  setTerrainEnabled as applyTerrain,
+  setBuildingsEnabled as applyBuildings,
+} from "../map/basemaps";
 
 interface ToolHistoryEntry {
   name: string;
@@ -25,8 +30,20 @@ interface LayerPanelProps {
   setLayerOpacity: (next: Record<string, number>) => void;
 }
 
-export default function LayerPanel(_props: LayerPanelProps) {
+export default function LayerPanel(props: LayerPanelProps) {
   const [open, setOpen] = useState(false);
+
+  function handleTerrainToggle() {
+    const next = !props.terrainEnabled;
+    props.setTerrainEnabled(next);
+    if (props.map) applyTerrain(props.map, next);
+  }
+
+  function handleBuildingsToggle() {
+    const next = !props.buildingsEnabled;
+    props.setBuildingsEnabled(next);
+    if (props.map) applyBuildings(props.map, next);
+  }
 
   if (!open) {
     return (
@@ -54,10 +71,59 @@ export default function LayerPanel(_props: LayerPanelProps) {
         </button>
       </div>
       <div className="layer-panel-body">
-        <p style={{ fontSize: 12, color: "var(--fg-muted)" }}>
-          T2~T4에서 트리 컨텐츠 채워짐.
-        </p>
+        {/* 배경지도 */}
+        <div className="layer-section">
+          <div className="layer-section-title">🗺️ 배경지도</div>
+          <div className="layer-radio-list">
+            {BASEMAP_ORDER.map((k) => (
+              <label key={k} className={`layer-radio ${props.basemap === k ? "active" : ""}`}>
+                <input
+                  type="radio"
+                  name="basemap"
+                  checked={props.basemap === k}
+                  onChange={() => props.setBasemap(k)}
+                />
+                <span>{basemapLabel(k)}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* 3D */}
+        <div className="layer-section">
+          <div className="layer-section-title">🏔️ 3D</div>
+          <label className="layer-checkbox">
+            <input
+              type="checkbox"
+              checked={props.terrainEnabled}
+              onChange={handleTerrainToggle}
+            />
+            <span>3D 지형 (terrain + hillshade)</span>
+          </label>
+          <label className="layer-checkbox">
+            <input
+              type="checkbox"
+              checked={props.buildingsEnabled}
+              onChange={handleBuildingsToggle}
+            />
+            <span>3D 건물 (extrusion)</span>
+          </label>
+        </div>
+
+        <div className="layer-section-placeholder">
+          T3에서 도구 결과 트리, T4에서 opacity slider 추가.
+        </div>
       </div>
     </div>
   );
+}
+
+function basemapLabel(k: BasemapKind): string {
+  switch (k) {
+    case "white": return "백지도";
+    case "base": return "일반";
+    case "satellite": return "위성";
+    case "midnight": return "야간";
+    case "hybrid": return "하이브리드";
+  }
 }
