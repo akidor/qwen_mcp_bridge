@@ -103,12 +103,14 @@ function addLineLayer(map: any, fc: any, layerId: string, color: string): ApplyR
 /** 도구 결과 텍스트를 MapLibre layer로 자동 변환. 인식 못 하면 silent (null). */
 export function applyToolResult(map: any, toolName: string, resultText: string): ApplyResult {
   if (!map || !resultText) return { layerId: null, message: "map/result 없음" };
-  let parsed: any;
+  let raw: any;
   try {
-    parsed = JSON.parse(resultText);
+    raw = JSON.parse(resultText);
   } catch {
     return { layerId: null, message: "JSON 파싱 실패" };
   }
+  // urban_mcp 도구 결과는 {ok:true, result:{...}} envelope. 일부는 bare(passthrough)도 가능 — 둘 다 처리.
+  const parsed: any = raw && raw.ok === true && raw.result ? raw.result : raw;
 
   // locate__get_parcel — geometry: Polygon
   if (toolName === "locate__get_parcel") {
