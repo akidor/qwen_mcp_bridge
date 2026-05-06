@@ -9,3 +9,10 @@ build/
 .pytest_cache/
 .ruff_cache/
 *.log
+
+# web (frontend)
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts
