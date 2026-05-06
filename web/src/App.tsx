@@ -1,4 +1,6 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type ChatRole = "user" | "assistant" | "system";
 
@@ -349,7 +351,19 @@ export default function App() {
                     )}
                   </ul>
                 ) : null}
-                <p className="message-content">{message.content || (isSending && index === messages.length - 1 ? "..." : "")}</p>
+                {message.role === "assistant" ? (
+                  <div className="message-content markdown-body">
+                    {message.content ? (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {message.content}
+                      </ReactMarkdown>
+                    ) : isSending && index === messages.length - 1 ? (
+                      <span className="dots">…</span>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="message-content">{message.content}</p>
+                )}
               </article>
             ))}
             <div ref={messagesEndRef} />

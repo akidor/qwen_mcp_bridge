@@ -368,3 +368,47 @@ h2 {
     max-width: 100%;
   }
 }
+
+.markdown-body p { margin: 0.5em 0; }
+.markdown-body pre {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 0.8em 1em;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 13px;
+}
+.markdown-body code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  font-size: 0.92em;
+}
+.markdown-body pre code { background: transparent; padding: 0; }
+.markdown-body ul, .markdown-body ol { margin: 0.4em 0 0.4em 1.4em; }
+.markdown-body table {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+}
+.markdown-body th, .markdown-body td {
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  padding: 0.3em 0.6em;
+  text-align: left;
+}
+.markdown-body blockquote {
+  border-left: 3px solid rgba(0, 0, 0, 0.25);
+  padding-left: 0.8em;
+  margin: 0.5em 0;
+  color: rgba(0, 0, 0, 0.7);
+}
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.15);
+  margin: 1em 0;
+}
+.markdown-body a { color: #2563eb; text-decoration: underline; }
+.dots::after { content: ""; animation: dots 1s steps(3) infinite; }
+@keyframes dots {
+  0% { content: "·"; }
+  33% { content: "··"; }
+  66% { content: "···"; }
+}
