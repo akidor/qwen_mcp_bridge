@@ -396,3 +396,109 @@ body {
   33% { content: "··"; }
   66% { content: "···"; }
 }
+
+/* === Chart === */
+.tool-events-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chart-mini {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code-bg);
+  padding: 8px 10px;
+  margin-top: 4px;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.chart-mini:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.chart-mini-title {
+  font-size: 11px;
+  color: var(--fg-muted);
+  margin-bottom: 4px;
+  letter-spacing: 0.02em;
+}
+.chart-mini-body {
+  width: 100%;
+  height: 120px;
+}
+
+.chart-full {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+.chart-full-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0 0 12px;
+}
+.chart-full-body {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Chart Modal */
+.chart-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.chart-modal {
+  position: relative;
+  width: min(80vw, 720px);
+  height: min(60vh, 480px);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+}
+.chart-modal-close {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+.chart-modal-close:hover { color: var(--fg); }
+
+/* Recharts overrides — 다크 모드 가독성 */
+.recharts-tooltip-wrapper {
+  outline: none !important;
+}
+.recharts-default-tooltip {
+  background: var(--panel-bg) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+  color: var(--fg) !important;
+}
+.recharts-tooltip-label {
+  color: var(--fg-muted) !important;
+  font-size: 11px !important;
+}
+.recharts-legend-item-text {
+  color: var(--fg-muted) !important;
+  font-size: 11px !important;
+}
