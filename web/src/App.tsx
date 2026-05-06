@@ -40,6 +40,7 @@ export default function App() {
   const [rawJson, setRawJson] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -250,7 +251,14 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <aside className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
+        <button
+          className="sidebar-toggle"
+          onClick={() => setSidebarOpen((v) => !v)}
+          aria-label="사이드바 토글"
+        >
+          {sidebarOpen ? "‹" : "›"}
+        </button>
         <div className="brand-block">
           <p className="eyebrow">urban-chat</p>
           <h1>Qwen × urban_mcp</h1>
@@ -339,17 +347,19 @@ export default function App() {
                   </details>
                 ) : null}
                 {message.toolEvents && message.toolEvents.length > 0 ? (
-                  <ul className="tool-events">
+                  <div className="tool-pills">
                     {message.toolEvents.map((te, i) =>
                       te.kind === "start" ? (
-                        <li key={i} className="tool-start">🔧 {te.name}({te.argsPreview})</li>
+                        <span key={i} className="tool-pill running">
+                          🔧 {te.name}
+                        </span>
                       ) : (
-                        <li key={i} className={te.error ? "tool-end error" : "tool-end ok"}>
+                        <span key={i} className={`tool-pill ${te.error ? "err" : "ok"}`}>
                           {te.error ? "✗" : "✓"} {te.name} · {te.durationMs}ms · {te.resultSize}B
-                        </li>
+                        </span>
                       )
                     )}
-                  </ul>
+                  </div>
                 ) : null}
                 {message.role === "assistant" ? (
                   <div className="message-content markdown-body">

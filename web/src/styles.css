@@ -61,22 +61,41 @@ pre {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 360px minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: var(--sidebar-w, 280px) 1fr;
   min-height: 100vh;
-  padding: 20px;
+  transition: grid-template-columns 0.2s ease;
 }
-
-.sidebar,
-.chat-panel,
-.json-panel {
-  backdrop-filter: blur(10px);
+.app-shell:has(.sidebar.closed) {
+  --sidebar-w: 32px;
 }
-
 .sidebar {
+  position: relative;
+  border-right: 1px solid var(--border, rgba(0,0,0,0.1));
+  padding: 24px 20px;
+  overflow: hidden;
+  transition: padding 0.2s ease;
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+.sidebar.closed { padding: 24px 4px; }
+.sidebar.closed > *:not(.sidebar-toggle) { display: none; }
+.sidebar-toggle {
+  position: absolute;
+  top: 12px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--border, rgba(0,0,0,0.15));
+  background: var(--bg, transparent);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.json-panel {
+  backdrop-filter: blur(10px);
 }
 
 .brand-block,
@@ -188,15 +207,71 @@ h2 {
 
 .chat-stage {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
-  gap: 20px;
+  grid-template-rows: 1fr auto;
+  min-height: 100vh;
+  overflow: hidden;
 }
-
-.chat-panel,
-.json-panel {
+.chat-panel {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 16px;
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 40px);
+  gap: 16px;
+  overflow-y: auto;
+}
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.message {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.message-role {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted, rgba(0,0,0,0.5));
+}
+.message-content { font-size: 15px; line-height: 1.65; }
+
+.tool-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0;
+}
+.tool-pill {
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--pill-bg, rgba(0,0,0,0.05));
+  border: 1px solid var(--pill-border, rgba(0,0,0,0.08));
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+.tool-pill.ok { color: #15803d; }
+.tool-pill.err { color: #b91c1c; }
+.tool-pill.running {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: 0.55; } }
+
+.reasoning-block {
+  font-size: 12px;
+  color: var(--muted, rgba(0,0,0,0.55));
+  border-left: 2px solid var(--border, rgba(0,0,0,0.15));
+  padding: 4px 0 4px 10px;
+  margin: 4px 0;
+}
+.reasoning-block summary { cursor: pointer; user-select: none; }
+.reasoning-block pre {
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  margin-top: 6px;
 }
 
 .chat-header {
@@ -204,7 +279,7 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 22px 24px 0;
+  padding: 0 0 8px;
 }
 
 .badge {
@@ -217,58 +292,17 @@ h2 {
   font-weight: 700;
 }
 
-.message-list {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 18px 24px;
-  overflow: auto;
-}
-
-.message {
-  max-width: 88%;
-  padding: 14px 16px;
-  border-radius: 22px;
-}
-
-.message.user {
-  align-self: flex-end;
-  background: var(--user);
-  color: #f8fafc;
-  border-bottom-right-radius: 8px;
-}
-
-.message.assistant {
-  align-self: flex-start;
-  background: var(--assistant);
-  color: var(--text);
-  border-bottom-left-radius: 8px;
-}
-
-.message.pending {
-  opacity: 0.75;
-}
-
-.message-role {
-  margin: 0 0 6px;
-  font-size: 0.74rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  opacity: 0.78;
-}
-
-.message-content {
-  margin: 0;
-  white-space: pre-wrap;
-}
-
 .composer {
-  padding: 0 24px 24px;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 12px 16px 18px;
+  background: var(--bg, transparent);
+  border-top: 1px solid var(--border, rgba(0,0,0,0.08));
 }
 
 .composer textarea {
-  min-height: 130px;
+  min-height: 90px;
   resize: vertical;
   margin-bottom: 12px;
 }
