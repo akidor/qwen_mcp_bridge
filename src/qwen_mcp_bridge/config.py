@@ -15,9 +15,10 @@ class Settings(BaseSettings):
     bind_host: str = "0.0.0.0"
     bind_port: int = 8090
 
-    max_tool_iterations: int = 5
+    max_tool_iterations: int = 8
     vllm_timeout: float = 120.0
     mcp_tool_timeout: float = 60.0
+    mcp_tool_result_max_bytes: int = 16384
 
     model_config = SettingsConfigDict(
         env_file=".env",

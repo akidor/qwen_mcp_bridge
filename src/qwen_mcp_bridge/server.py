@@ -92,6 +92,7 @@ async def chat_completions(request: Request) -> Any:
             max_iterations=settings.max_tool_iterations,
             request_timeout=settings.vllm_timeout,
             extra_body=extra_body,
+            max_tool_result_bytes=settings.mcp_tool_result_max_bytes,
         )
         return StreamingResponse(
             gen,
@@ -111,6 +112,7 @@ async def chat_completions(request: Request) -> Any:
             model=body.get("model") or settings.vllm_model,
             max_iterations=settings.max_tool_iterations,
             request_timeout=settings.vllm_timeout,
+            max_tool_result_bytes=settings.mcp_tool_result_max_bytes,
         )
     except MaxIterReached as e:
         # 친근한 한국어로 마감

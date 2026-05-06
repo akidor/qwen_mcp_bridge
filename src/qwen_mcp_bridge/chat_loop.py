@@ -7,6 +7,8 @@ from typing import Any
 
 import httpx
 
+from qwen_mcp_bridge._tool_result import truncate_tool_text
+
 
 class MaxIterReached(RuntimeError):
     """tool_call 루프가 max_iterations에 도달."""
@@ -63,6 +65,7 @@ async def run_chat(
     model: str,
     max_iterations: int = 5,
     request_timeout: float = 120.0,
+    max_tool_result_bytes: int = 0,
 ) -> dict:
     """OpenAI 호환 응답 dict 반환. messages는 함수 안에서 mutate되지 않음."""
     work = list(messages)
@@ -100,6 +103,7 @@ async def run_chat(
                         tool_text = f"도구 호출 오류: {e}"
                         logger.warning("dispatch 오류 (%s): %s", name, e)
 
+                tool_text = truncate_tool_text(tool_text, max_tool_result_bytes)
                 work.append({
                     "role": "tool",
                     "tool_call_id": call["id"],

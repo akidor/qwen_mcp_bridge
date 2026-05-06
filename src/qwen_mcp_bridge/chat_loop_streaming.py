@@ -24,6 +24,8 @@ from typing import Any, AsyncIterator
 
 import httpx
 
+from qwen_mcp_bridge._tool_result import truncate_tool_text
+
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +189,7 @@ async def run_chat_streaming(
     max_iterations: int = 5,
     request_timeout: float = 180.0,
     extra_body: dict | None = None,
+    max_tool_result_bytes: int = 0,
 ) -> AsyncIterator[bytes]:
     """SSE byte chunks를 yield. FastAPI StreamingResponse로 forward."""
     work = list(messages)
@@ -252,6 +255,7 @@ async def run_chat_streaming(
                         logger.warning("dispatch 오류 (%s): %s", name, e)
                         err = True
 
+                tool_text = truncate_tool_text(tool_text, max_tool_result_bytes)
                 duration_ms = int((time.monotonic() - t0) * 1000)
                 yield _sse({
                     "type": "tool_call_end",
