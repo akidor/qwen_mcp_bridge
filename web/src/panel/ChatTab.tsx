@@ -112,15 +112,16 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
             continue;
           }
           if (data.type === "tool_call_end") {
-            // T5에서 onToolResult로 auto_layer 트리거 (resultText는 9차 T5에서 SSE에 추가됨)
+            const resultText = typeof data.result_text === "string" ? data.result_text : "";
             appendToolEvent(setMessages, assistantIdx, {
               kind: "end",
               name: data.name,
               durationMs: data.duration_ms ?? 0,
               resultSize: data.result_size ?? 0,
               error: !!data.error,
+              resultText,
             });
-            onToolResult?.(data.name, "");
+            onToolResult?.(data.name, resultText);
             continue;
           }
           if (data.type === "status") continue;

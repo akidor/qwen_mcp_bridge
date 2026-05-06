@@ -1,6 +1,7 @@
 import { useState } from "react";
 import ChatTab from "./ChatTab";
 import { BasemapKind } from "../map/basemaps";
+import { applyToolResult, fitToBbox } from "../map/auto_layer";
 
 type TabName = "chat" | "settings" | "debug";
 
@@ -20,10 +21,23 @@ export default function FloatingPanel({ map, basemap, setBasemap }: FloatingPane
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [disableThinking, setDisableThinking] = useState(true);
   const [lastChunk, setLastChunk] = useState<unknown>(null);
-  const [toolHistory, setToolHistory] = useState<{ name: string; ts: number }[]>([]);
+  const [toolHistory, setToolHistory] = useState<{
+    name: string;
+    ts: number;
+    layerId: string | null;
+    message: string;
+    bbox?: [number, number, number, number];
+  }[]>([]);
 
-  function handleToolResult(toolName: string, _resultText: string) {
-    setToolHistory((cur) => [...cur, { name: toolName, ts: Date.now() }]);
+  function handleToolResult(toolName: string, resultText: string) {
+    const ts = Date.now();
+    if (!map) {
+      setToolHistory((cur) => [...cur, { name: toolName, ts, layerId: null, message: "map 미준비" }]);
+      return;
+    }
+    const r = applyToolResult(map, toolName, resultText);
+    setToolHistory((cur) => [...cur, { name: toolName, ts, layerId: r.layerId, message: r.message, bbox: r.bbox }]);
+    if (r.bbox) fitToBbox(map, r.bbox);
   }
 
   if (collapsed) {

@@ -82,3 +82,43 @@ async def test_max_iter_emits_friendly_content_chunk():
     assert "max_iterations=2" in body
     # [DONE]으로 마감
     assert "data: [DONE]" in body
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_tool_call_end_sse_includes_result_text():
+    """tool_call_end SSE 이벤트에 result_text가 포함돼야 함 (frontend auto_layer용)."""
+    pool = make_pool_mock_with_tool("locate__get_parcel", '{"pnu":"123","geometry":{"type":"Polygon","coordinates":[[[127,37],[127.01,37],[127.01,37.01],[127,37.01],[127,37]]]}}')
+
+    respx.post("http://fake-vllm/v1/chat/completions").mock(
+        side_effect=[
+            httpx.Response(200, text=(
+                'data: {"id":"x","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"locate__get_parcel","arguments":"{\\"pnu\\":\\"123\\"}"}}]},"finish_reason":null}]}\n\n'
+                'data: {"id":"x","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n\n'
+                'data: [DONE]\n\n'
+            )),
+            httpx.Response(200, text=(
+                'data: {"id":"y","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{"role":"assistant","content":"결과: PNU 123"},"finish_reason":null}]}\n\n'
+                'data: {"id":"y","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n'
+                'data: [DONE]\n\n'
+            )),
+        ]
+    )
+
+    chunks: list[bytes] = []
+    async for chunk in run_chat_streaming(
+        messages=[{"role": "user", "content": "x"}],
+        pool=pool,
+        vllm_base_url="http://fake-vllm/v1",
+        vllm_api_key="x",
+        model="fake-model",
+        max_iterations=5,
+    ):
+        chunks.append(chunk)
+
+    body = b"".join(chunks).decode("utf-8")
+    # tool_call_end 이벤트에 result_text 포함
+    assert "tool_call_end" in body
+    assert "result_text" in body
+    # geometry JSON이 텍스트 안에 들어가야 함
+    assert "Polygon" in body

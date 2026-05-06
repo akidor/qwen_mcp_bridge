@@ -257,11 +257,28 @@ async def run_chat_streaming(
 
                 tool_text = truncate_tool_text(tool_text, max_tool_result_bytes)
                 duration_ms = int((time.monotonic() - t0) * 1000)
+
+                # T5: result_text도 SSE에 첨부 — frontend auto_layer가 GeoJSON 추출에 사용.
+                # 8KB cap (max-size guard와 별도, frontend 전송용 hard cap).
+                _RESULT_TEXT_SSE_CAP = 8192
+                tool_text_for_sse = tool_text
+                if len(tool_text_for_sse.encode("utf-8")) > _RESULT_TEXT_SSE_CAP:
+                    enc = tool_text_for_sse.encode("utf-8")[:_RESULT_TEXT_SSE_CAP]
+                    while enc:
+                        try:
+                            tool_text_for_sse = enc.decode("utf-8")
+                            break
+                        except UnicodeDecodeError:
+                            enc = enc[:-1]
+                    else:
+                        tool_text_for_sse = ""
+
                 yield _sse({
                     "type": "tool_call_end",
                     "name": name,
                     "duration_ms": duration_ms,
                     "result_size": len(tool_text),
+                    "result_text": tool_text_for_sse,
                     "error": err,
                 })
 
