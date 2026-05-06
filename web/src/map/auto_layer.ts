@@ -375,3 +375,75 @@ export function hasFillLayer(map: any, layerId: string): boolean {
   if (!map) return false;
   return !!map.getLayer(`${layerId}-fill`);
 }
+
+// === WMS raster helpers (P13) ===
+
+const WMS_BASE_URL = "/geoserver";
+
+function wmsTileUrl(layerName: string, cqlFilter?: string, styles?: string): string {
+  const ws = layerName.startsWith("dlof:") ? "/dlof/wms" : "/wms";
+  const params = new URLSearchParams({
+    service: "WMS",
+    version: "1.1.0",
+    request: "GetMap",
+    layers: layerName,
+    styles: styles ?? "",
+    format: "image/png",
+    transparent: "true",
+    srs: "EPSG:3857",
+    width: "256",
+    height: "256",
+    bbox: "{bbox-epsg-3857}",
+  });
+  if (cqlFilter) params.set("cql_filter", cqlFilter);
+  // URLSearchParams가 {bbox-epsg-3857}의 중괄호를 percent-encode하므로 디코드 복원
+  const qs = params.toString().replace("%7Bbbox-epsg-3857%7D", "{bbox-epsg-3857}");
+  return `${WMS_BASE_URL}${ws}?${qs}`;
+}
+
+export function addWmsLayer(
+  map: any,
+  layerKey: string,
+  layerName: string,
+  cqlFilter?: string,
+  styles?: string,
+): void {
+  if (!map) return;
+  const sourceId = `wms-${layerKey}`;
+  const layerId = `wms-${layerKey}`;
+  if (map.getLayer(layerId)) return;
+  if (!map.getSource(sourceId)) {
+    map.addSource(sourceId, {
+      type: "raster",
+      tiles: [wmsTileUrl(layerName, cqlFilter, styles)],
+      tileSize: 256,
+    });
+  }
+  map.addLayer({
+    id: layerId,
+    type: "raster",
+    source: sourceId,
+    paint: { "raster-opacity": 0.8 },
+  });
+}
+
+export function removeWmsLayer(map: any, layerKey: string): void {
+  if (!map) return;
+  const sourceId = `wms-${layerKey}`;
+  const layerId = `wms-${layerKey}`;
+  if (map.getLayer(layerId)) map.removeLayer(layerId);
+  if (map.getSource(sourceId)) map.removeSource(sourceId);
+}
+
+export function setWmsOpacity(map: any, layerKey: string, opacity: number): void {
+  if (!map) return;
+  const layerId = `wms-${layerKey}`;
+  if (!map.getLayer(layerId)) return;
+  const clamped = Math.max(0, Math.min(1, opacity));
+  map.setPaintProperty(layerId, "raster-opacity", clamped);
+}
+
+export function hasWmsLayer(map: any, layerKey: string): boolean {
+  if (!map) return false;
+  return !!map.getLayer(`wms-${layerKey}`);
+}
