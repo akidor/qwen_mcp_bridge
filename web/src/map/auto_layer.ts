@@ -2,11 +2,17 @@
 
 const COLOR_PARCEL_FILL = "#7c3aed";
 const COLOR_PARCEL_OUTLINE = "#5b21b6";
+const COLOR_PARCEL_LABEL = "#5b21b6";
 const COLOR_ISOCHRONE = "#22c55e";
+const COLOR_ISOCHRONE_LABEL = "#15803d";
 const COLOR_POI = "#0ea5e9";
+const COLOR_POI_LABEL = "#0c4a6e";
 const COLOR_ROUTE = "#f59e0b";
 const COLOR_BUFFER = "#a8a29e";
 const COLOR_AGGREGATION = "#737373";
+
+// POI 좌표 jitter — 동일 좌표 점들이 겹치지 않게 미세 흐트림 (~0.0001° ≈ 11m).
+const POI_JITTER_DEG = 0.0001;
 
 type Geom = { type: string; coordinates: any };
 
@@ -42,12 +48,70 @@ function bboxOfPolygon(coords: any): [number, number, number, number] | undefine
   }
 }
 
-function addPolygonLayer(map: any, geom: Geom, layerId: string, fillColor: string, outlineColor: string, outlineDash?: number[]): ApplyResult {
+/** Point coordinates 미세 jitter — 같은 좌표 POI들이 한 점에 겹치는 걸 흐트림. */
+function jitterPointFc(fc: any): any {
+  if (fc?.type !== "FeatureCollection" || !Array.isArray(fc.features)) return fc;
+  const features = fc.features.map((f: any) => {
+    if (f?.geometry?.type !== "Point") return f;
+    const c = f.geometry.coordinates;
+    if (!Array.isArray(c) || c.length < 2) return f;
+    const dx = (Math.random() - 0.5) * 2 * POI_JITTER_DEG;
+    const dy = (Math.random() - 0.5) * 2 * POI_JITTER_DEG;
+    return {
+      ...f,
+      geometry: { ...f.geometry, coordinates: [c[0] + dx, c[1] + dy, ...c.slice(2)] },
+    };
+  });
+  return { ...fc, features };
+}
+
+/** 라벨 layer 추가 (overlap 허용 — 모든 POI 항상 보이게). */
+function addLabelLayer(
+  map: any,
+  layerId: string,
+  sourceId: string,
+  textField: any,
+  color: string,
+  options: { offset?: [number, number]; size?: number } = {},
+): void {
+  map.addLayer({
+    id: `${layerId}-label`,
+    type: "symbol",
+    source: sourceId,
+    layout: {
+      "text-field": textField,
+      "text-size": options.size ?? 11,
+      "text-anchor": "top",
+      "text-offset": options.offset ?? [0, 0.6],
+      "text-allow-overlap": true,        // 겹쳐도 표시
+      "text-ignore-placement": true,     // 다른 라벨 placement 영향 X
+      "text-padding": 0,
+      "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+    },
+    paint: {
+      "text-color": color,
+      "text-halo-color": "#ffffff",
+      "text-halo-width": 1.5,
+      "text-halo-blur": 0.5,
+    },
+  });
+}
+
+function addPolygonLayer(
+  map: any,
+  geom: Geom,
+  layerId: string,
+  fillColor: string,
+  outlineColor: string,
+  options: { outlineDash?: number[]; labelText?: string } = {},
+): ApplyResult {
   const sourceId = `${layerId}-src`;
   if (map.getSource(sourceId)) return { layerId, message: "이미 존재" };
+  const properties: Record<string, any> = {};
+  if (options.labelText) properties.label = options.labelText;
   map.addSource(sourceId, {
     type: "geojson",
-    data: { type: "Feature", properties: {}, geometry: geom },
+    data: { type: "Feature", properties, geometry: geom },
   });
   map.addLayer({
     id: `${layerId}-fill`,
@@ -62,9 +126,15 @@ function addPolygonLayer(map: any, geom: Geom, layerId: string, fillColor: strin
     paint: {
       "line-color": outlineColor,
       "line-width": 1.5,
-      ...(outlineDash ? { "line-dasharray": outlineDash } : {}),
+      ...(options.outlineDash ? { "line-dasharray": options.outlineDash } : {}),
     },
   });
+  if (options.labelText) {
+    addLabelLayer(map, layerId, sourceId, ["get", "label"], COLOR_PARCEL_LABEL, {
+      offset: [0, 0],
+      size: 12,
+    });
+  }
   const bbox = geom.type === "Polygon" ? bboxOfPolygon(geom.coordinates) : undefined;
   return { layerId, message: `polygon 추가됨 (${layerId})`, bbox };
 }
@@ -72,7 +142,8 @@ function addPolygonLayer(map: any, geom: Geom, layerId: string, fillColor: strin
 function addPointsLayer(map: any, fc: any, layerId: string, color: string): ApplyResult {
   const sourceId = `${layerId}-src`;
   if (map.getSource(sourceId)) return { layerId, message: "이미 존재" };
-  map.addSource(sourceId, { type: "geojson", data: fc });
+  const jittered = jitterPointFc(fc);
+  map.addSource(sourceId, { type: "geojson", data: jittered });
   map.addLayer({
     id: `${layerId}-pt`,
     type: "circle",
@@ -84,7 +155,22 @@ function addPointsLayer(map: any, fc: any, layerId: string, color: string): Appl
       "circle-stroke-width": 1,
     },
   });
-  return { layerId, message: `points 추가됨 (${layerId})` };
+  // POI 라벨: poi_nm > label > big_category 순 우선. 모두 없으면 빈 문자열.
+  addLabelLayer(
+    map,
+    layerId,
+    sourceId,
+    [
+      "coalesce",
+      ["get", "poi_nm"],
+      ["get", "label"],
+      ["get", "big_category"],
+      "",
+    ],
+    COLOR_POI_LABEL,
+    { offset: [0, 0.8], size: 11 },
+  );
+  return { layerId, message: `points ${jittered.features?.length ?? 0}개 추가됨 (${layerId})` };
 }
 
 function addLineLayer(map: any, fc: any, layerId: string, color: string): ApplyResult {
@@ -100,6 +186,39 @@ function addLineLayer(map: any, fc: any, layerId: string, color: string): ApplyR
   return { layerId, message: `line 추가됨 (${layerId})` };
 }
 
+function addIsochroneFc(map: any, fc: any, layerId: string): ApplyResult {
+  const sourceId = `${layerId}-src`;
+  if (map.getSource(sourceId)) return { layerId, message: "이미 존재" };
+  map.addSource(sourceId, { type: "geojson", data: fc });
+  map.addLayer({
+    id: `${layerId}-fill`,
+    type: "fill",
+    source: sourceId,
+    paint: { "fill-color": COLOR_ISOCHRONE, "fill-opacity": 0.18 },
+  });
+  map.addLayer({
+    id: `${layerId}-line`,
+    type: "line",
+    source: sourceId,
+    paint: { "line-color": COLOR_ISOCHRONE, "line-width": 2, "line-dasharray": [2, 2] },
+  });
+  // 라벨: feature.properties.tobreak (초)을 분으로 표기 — "5분 내 도달"
+  addLabelLayer(
+    map,
+    layerId,
+    sourceId,
+    [
+      "case",
+      ["has", "tobreak"],
+      ["concat", ["to-string", ["round", ["/", ["get", "tobreak"], 60]]], "분 내 도달"],
+      ["coalesce", ["get", "name"], ""],
+    ],
+    COLOR_ISOCHRONE_LABEL,
+    { offset: [0, 0], size: 13 },
+  );
+  return { layerId, message: `등시선 추가됨 (${layerId})` };
+}
+
 /** 도구 결과 텍스트를 MapLibre layer로 자동 변환. 인식 못 하면 silent (null). */
 export function applyToolResult(map: any, toolName: string, resultText: string): ApplyResult {
   if (!map || !resultText) return { layerId: null, message: "map/result 없음" };
@@ -112,7 +231,7 @@ export function applyToolResult(map: any, toolName: string, resultText: string):
   // urban_mcp 도구 결과는 {ok:true, result:{...}} envelope. 일부는 bare(passthrough)도 가능 — 둘 다 처리.
   const parsed: any = raw && raw.ok === true && raw.result ? raw.result : raw;
 
-  // locate__get_parcel — geometry: Polygon
+  // locate__get_parcel — geometry: Polygon (라벨 없음, 위치만 강조)
   if (toolName === "locate__get_parcel") {
     const geom = parsed?.geometry;
     if (isGeometry(geom)) {
@@ -126,7 +245,7 @@ export function applyToolResult(map: any, toolName: string, resultText: string):
       return addPolygonLayer(map, geom, uniqueId("parcels-union"), COLOR_PARCEL_FILL, COLOR_PARCEL_OUTLINE);
     }
   }
-  // locate__parcel_at_point — { found: bool, feature: { geometry } }
+  // locate__parcel_at_point — { found: bool, feature: { geometry } } (라벨 없음)
   if (toolName === "locate__parcel_at_point") {
     const geom = parsed?.feature?.geometry;
     if (isGeometry(geom)) {
@@ -156,22 +275,7 @@ export function applyToolResult(map: any, toolName: string, resultText: string):
   if (/^reach__isochrone_(walk|bike|transit|car)$/.test(toolName)) {
     const fc = parsed?.feature_collection;
     if (fc?.type === "FeatureCollection") {
-      const id = uniqueId(toolName.replace("reach__", ""));
-      const sourceId = `${id}-src`;
-      map.addSource(sourceId, { type: "geojson", data: fc });
-      map.addLayer({
-        id: `${id}-fill`,
-        type: "fill",
-        source: sourceId,
-        paint: { "fill-color": COLOR_ISOCHRONE, "fill-opacity": 0.18 },
-      });
-      map.addLayer({
-        id: `${id}-line`,
-        type: "line",
-        source: sourceId,
-        paint: { "line-color": COLOR_ISOCHRONE, "line-width": 2, "line-dasharray": [2, 2] },
-      });
-      return { layerId: id, message: `등시선 추가됨 (${id})` };
+      return addIsochroneFc(map, fc, uniqueId(toolName.replace("reach__", "")));
     }
   }
   // reach__poi_in_radius / poi_in_isochrone — { result: { points: FeatureCollection } } or { points: ... }
@@ -187,7 +291,9 @@ export function applyToolResult(map: any, toolName: string, resultText: string):
   }
   // analyze__make_buffer — Polygon (raw geometry)
   if (toolName === "analyze__make_buffer" && isGeometry(parsed)) {
-    return addPolygonLayer(map, parsed, uniqueId("buffer"), "transparent", COLOR_BUFFER, [3, 3]);
+    return addPolygonLayer(map, parsed, uniqueId("buffer"), "transparent", COLOR_BUFFER, {
+      outlineDash: [3, 3],
+    });
   }
   // analyze__parcel_aggregation — FeatureCollection
   if (toolName === "analyze__parcel_aggregation" && parsed?.type === "FeatureCollection") {
@@ -214,8 +320,8 @@ export function applyToolResult(map: any, toolName: string, resultText: string):
 
 /** layer 표시/숨김 토글. */
 export function toggleLayer(map: any, layerId: string, visible: boolean): void {
-  // layerId-fill / -line / -pt / -ln 등 sub-layer를 한꺼번에 토글
-  const suffixes = ["-fill", "-line", "-pt", "-ln"];
+  // sub-layer 접미사 (-fill / -line / -pt / -ln / -label)를 한꺼번에 토글.
+  const suffixes = ["-fill", "-line", "-pt", "-ln", "-label"];
   const visibility = visible ? "visible" : "none";
   for (const sfx of suffixes) {
     const id = `${layerId}${sfx}`;
