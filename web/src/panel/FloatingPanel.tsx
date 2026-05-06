@@ -7,33 +7,45 @@ import { applyToolResult, fitToBbox } from "../map/auto_layer";
 
 type TabName = "chat" | "settings" | "debug";
 
+interface ToolHistoryEntry {
+  name: string;
+  ts: number;
+  layerId: string | null;
+  message: string;
+  bbox?: [number, number, number, number];
+  resultText?: string;
+}
+
 interface FloatingPanelProps {
   map: any;
   basemap: BasemapKind;
   setBasemap: (b: BasemapKind) => void;
+  terrainEnabled: boolean;
+  setTerrainEnabled: (v: boolean) => void;
+  buildingsEnabled: boolean;
+  setBuildingsEnabled: (v: boolean) => void;
+  toolHistory: ToolHistoryEntry[];
+  setToolHistory: React.Dispatch<React.SetStateAction<ToolHistoryEntry[]>>;
+  layerVisibility: Record<string, boolean>;
+  setLayerVisibility: (next: Record<string, boolean>) => void;
 }
 
 const DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B";
 const DEFAULT_SYSTEM_PROMPT = "한국어로 짧고 명확하게 답해.";
 
-export default function FloatingPanel({ map, basemap, setBasemap }: FloatingPanelProps) {
+export default function FloatingPanel({
+  map, basemap, setBasemap,
+  terrainEnabled, setTerrainEnabled,
+  buildingsEnabled, setBuildingsEnabled,
+  toolHistory, setToolHistory,
+  layerVisibility, setLayerVisibility,
+}: FloatingPanelProps) {
   const [activeTab, setActiveTab] = useState<TabName>("chat");
   const [collapsed, setCollapsed] = useState(false);
   const [model, setModel] = useState(DEFAULT_MODEL);
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [disableThinking, setDisableThinking] = useState(true);
   const [lastChunk, setLastChunk] = useState<unknown>(null);
-  const [toolHistory, setToolHistory] = useState<{
-    name: string;
-    ts: number;
-    layerId: string | null;
-    message: string;
-    bbox?: [number, number, number, number];
-    resultText?: string;
-  }[]>([]);
-  const [layerVisibility, setLayerVisibility] = useState<Record<string, boolean>>({});
-  const [terrainEnabled, setTerrainEnabled] = useState(false);
-  const [buildingsEnabled, setBuildingsEnabled] = useState(false);
 
   function handleToolResult(toolName: string, resultText: string) {
     const ts = Date.now();
@@ -82,8 +94,6 @@ export default function FloatingPanel({ map, basemap, setBasemap }: FloatingPane
         </button>
       </div>
 
-      {/* 모든 탭을 항상 마운트하고 visibility만 토글 — ChatTab의 messages/input local state가
-          탭 전환 시 초기화되지 않게 함. 비활성 탭은 display:none. */}
       <div className="panel-body">
         <div className={`tab-pane ${activeTab === "chat" ? "" : "hidden"}`}>
           <ChatTab
@@ -96,29 +106,16 @@ export default function FloatingPanel({ map, basemap, setBasemap }: FloatingPane
         </div>
         <div className={`tab-pane ${activeTab === "settings" ? "" : "hidden"}`}>
           <SettingsTab
-            map={map}
             model={model}
             setModel={setModel}
             systemPrompt={systemPrompt}
             setSystemPrompt={setSystemPrompt}
             disableThinking={disableThinking}
             setDisableThinking={setDisableThinking}
-            basemap={basemap}
-            setBasemap={setBasemap}
-            terrainEnabled={terrainEnabled}
-            setTerrainEnabled={setTerrainEnabled}
-            buildingsEnabled={buildingsEnabled}
-            setBuildingsEnabled={setBuildingsEnabled}
           />
         </div>
         <div className={`tab-pane ${activeTab === "debug" ? "" : "hidden"}`}>
-          <DebugTab
-            map={map}
-            lastChunk={lastChunk}
-            toolHistory={toolHistory}
-            layerVisibility={layerVisibility}
-            setLayerVisibility={setLayerVisibility}
-          />
+          <DebugTab lastChunk={lastChunk} />
         </div>
       </div>
     </div>

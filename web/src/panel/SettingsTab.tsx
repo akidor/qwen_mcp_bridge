@@ -1,25 +1,12 @@
 import { useEffect, useState } from "react";
-import {
-  BasemapKind,
-  BASEMAP_ORDER,
-  setTerrainEnabled as applyTerrain,
-  setBuildingsEnabled as applyBuildings,
-} from "../map/basemaps";
 
 interface SettingsTabProps {
-  map: any;
   model: string;
   setModel: (m: string) => void;
   systemPrompt: string;
   setSystemPrompt: (s: string) => void;
   disableThinking: boolean;
   setDisableThinking: (v: boolean) => void;
-  basemap: BasemapKind;
-  setBasemap: (b: BasemapKind) => void;
-  terrainEnabled: boolean;
-  setTerrainEnabled: (v: boolean) => void;
-  buildingsEnabled: boolean;
-  setBuildingsEnabled: (v: boolean) => void;
 }
 
 export default function SettingsTab(props: SettingsTabProps) {
@@ -43,18 +30,6 @@ export default function SettingsTab(props: SettingsTabProps) {
     } finally {
       setLoadingModels(false);
     }
-  }
-
-  function handleTerrainToggle() {
-    const next = !props.terrainEnabled;
-    props.setTerrainEnabled(next);
-    if (props.map) applyTerrain(props.map, next);
-  }
-
-  function handleBuildingsToggle() {
-    const next = !props.buildingsEnabled;
-    props.setBuildingsEnabled(next);
-    if (props.map) applyBuildings(props.map, next);
   }
 
   return (
@@ -96,40 +71,9 @@ export default function SettingsTab(props: SettingsTabProps) {
         <span>thinking 끄기 (빠른 응답)</span>
       </label>
 
-      <div className="field">
-        <label>Basemap</label>
-        <div className="basemap-row">
-          {BASEMAP_ORDER.map((k) => (
-            <button
-              key={k}
-              className={`basemap-pill ${props.basemap === k ? "active" : ""}`}
-              onClick={() => props.setBasemap(k)}
-            >
-              {k}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="field">
-        <label>3D</label>
-        <label className="checkbox-field">
-          <input
-            type="checkbox"
-            checked={props.terrainEnabled}
-            onChange={handleTerrainToggle}
-          />
-          <span>3D 지형 (terrain + hillshade)</span>
-        </label>
-        <label className="checkbox-field">
-          <input
-            type="checkbox"
-            checked={props.buildingsEnabled}
-            onChange={handleBuildingsToggle}
-          />
-          <span>3D 건물 (fill-extrusion)</span>
-        </label>
-      </div>
+      <p style={{ fontSize: 11, color: "var(--fg-muted)", margin: 0 }}>
+        배경지도·3D·도구 layer 컨트롤은 좌상단 🗂️ 레이어 패널로 이전됨.
+      </p>
     </div>
   );
 }
