@@ -5,70 +5,41 @@ type ChatRole = "user" | "assistant" | "system";
 type ChatMessage = {
   role: ChatRole;
   content: string;
+  reasoning?: string;
+  toolEvents?: ToolEvent[];
 };
+
+type ToolEvent =
+  | { kind: "start"; name: string; argsPreview: string }
+  | { kind: "end"; name: string; durationMs: number; resultSize: number; error: boolean };
 
 type ModelListResponse = {
   data?: Array<{ id: string }>;
 };
 
-type ChatResponse = {
-  choices?: Array<{
-    message?: {
-      content?: string;
-    };
-  }>;
-  usage?: {
-    prompt_tokens?: number;
-    completion_tokens?: number;
-    total_tokens?: number;
-  };
-};
-
-type KoreanNormalizationResult = {
-  content: string;
-  didRetry: boolean;
-  strategy: string;
-  failed: boolean;
-  rawRetryContent?: string;
-};
-
-const DEFAULT_MODEL = "sakamakismile/Qwen3.6-35B-A3B-NVFP4";
-const DEFAULT_SYSTEM_PROMPT = [
-  "당신은 한국어 전용 AI 어시스턴트다.",
-  "모든 답변은 반드시 자연스럽고 명확한 한국어로만 작성한다.",
-  "일본어, 중국어, 영어 문장을 섞어 쓰지 않는다.",
-  "모델 소개, 자기소개, 사과문, 메타 설명도 예외 없이 한국어로만 작성한다.",
-  "한자, 히라가나, 가타카나, 일본어 문장 부호를 일반 문장에 사용하지 않는다.",
-  "코드, API 이름, 파일 경로, 고유한 모델명처럼 번역하면 안 되는 항목만 원문 그대로 둘 수 있다.",
-  "사용자가 다른 언어로 질문해도 먼저 한국어로만 답한다.",
-  "짧고 직접적으로 답하되, 필요하면 핵심만 한국어로 정리한다.",
-  "자신이 어떤 모델인지 설명할 때도 한국어 문장만 사용한다.",
-  "외국어 표현이 떠오르더라도 반드시 한국어 표현으로 바꿔서 답한다.",
-  "출력에 일본어, 중국어, 한자 중심 문장이 섞이면 스스로 한국어 문장으로 고쳐서 다시 출력한다."
-].join(" ");
-const DEFAULT_PROMPT =
-  "한국어로 짧고 명확하게 답해. 지금 이 서버가 어떤 구조로 돌아가는지 설명해.";
+const DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B";
+const DEFAULT_SYSTEM_PROMPT = "한국어로 짧고 명확하게 답해.";
+const DEFAULT_PROMPT = "역삼동 738번지의 PNU와 면적 알려줘";
 
 export default function App() {
   const [model, setModel] = useState(DEFAULT_MODEL);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [input, setInput] = useState(DEFAULT_PROMPT);
-  const [disableThinking, setDisableThinking] = useState(true);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
-      content:
-        "준비되었습니다. 이 UI는 Vite 프록시를 통해 /api 요청을 127.0.0.1:8020으로 전달합니다."
+      content: "준비됨. 자연어로 질의하면 urban_mcp 8 도메인 52 도구가 필요할 때 자동 호출됩니다."
     }
   ]);
   const [status, setStatus] = useState("Ready.");
-  const [rawJson, setRawJson] = useState("");
   const [metrics, setMetrics] = useState("");
+  const [rawJson, setRawJson] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     void loadModels();
@@ -80,25 +51,17 @@ export default function App() {
 
   async function loadModels() {
     setIsLoadingModels(true);
-    setStatus("Loading model list via proxy...");
-
+    setStatus("모델 목록 로딩 중...");
     try {
       const response = await fetch("/api/v1/models");
       const json = (await response.json()) as ModelListResponse;
-
-      if (!response.ok) {
-        throw new Error(JSON.stringify(json, null, 2));
-      }
-
+      if (!response.ok) throw new Error(JSON.stringify(json));
       const models = (json.data ?? []).map((entry) => entry.id);
       setAvailableModels(models);
-      if (models[0]) {
-        setModel(models[0]);
-      }
-      setRawJson(JSON.stringify(json, null, 2));
-      setStatus("Model list loaded.");
+      if (models[0]) setModel(models[0]);
+      setStatus(`모델 ${models.length}개 로드됨.`);
     } catch (error) {
-      setStatus(`Model list request failed.\n${getErrorMessage(error)}`);
+      setStatus(`모델 목록 실패.\n${getErrorMessage(error)}`);
     } finally {
       setIsLoadingModels(false);
     }
@@ -108,216 +71,185 @@ export default function App() {
     event.preventDefault();
 
     const prompt = input.trim();
-    if (!prompt || isSending) {
-      return;
-    }
+    if (!prompt || isSending) return;
 
-    const nextMessages = [...messages, { role: "user" as const, content: prompt }];
-    setMessages(nextMessages);
+    const baseMessages = [...messages, { role: "user" as const, content: prompt }];
+    setMessages(baseMessages);
     setInput("");
     setIsSending(true);
-    setStatus("Sending request via /api proxy...");
-    setRawJson("");
+    setStatus("스트리밍 시작...");
     setMetrics("");
+    setRawJson("");
 
-    const requestMessages: ChatMessage[] = [];
+    // 새 assistant placeholder를 추가 — chunks가 여기에 누적됨
+    const assistantIdx = baseMessages.length;
+    setMessages((current) => [
+      ...current,
+      { role: "assistant", content: "", reasoning: "", toolEvents: [] }
+    ]);
+
+    const requestMessages: Array<{ role: ChatRole; content: string }> = [];
     if (systemPrompt.trim()) {
       requestMessages.push({ role: "system", content: systemPrompt.trim() });
     }
-    requestMessages.push(...nextMessages.filter((message) => message.role !== "system"));
+    requestMessages.push(
+      ...baseMessages
+        .filter((m) => m.role !== "system")
+        .map((m) => ({ role: m.role, content: m.content }))
+    );
 
-    const payload: Record<string, unknown> = {
+    const payload = {
       model,
       messages: requestMessages,
-      temperature: 0,
-      max_tokens: 512
+      stream: true,
+      temperature: 0.7
     };
 
-    if (disableThinking) {
-      payload.chat_template_kwargs = { enable_thinking: false };
-    }
-
     const startedAt = performance.now();
+    abortRef.current = new AbortController();
+
+    let totalCompletionTokens = 0;
+    let totalPromptTokens = 0;
+    let lastChunk: unknown = null;
+    let toolCalls = 0;
 
     try {
       const response = await fetch("/api/v1/chat/completions", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: abortRef.current.signal
       });
 
-      const json = (await response.json()) as ChatResponse;
       if (!response.ok) {
-        throw new Error(JSON.stringify(json, null, 2));
+        const text = await response.text();
+        throw new Error(text || `HTTP ${response.status}`);
+      }
+      if (!response.body) {
+        throw new Error("response body가 없습니다");
       }
 
-      const answer =
-        json.choices?.[0]?.message?.content?.trim() ||
-        "The model returned an empty response.";
-      const normalized = await normalizeKoreanAnswer(answer, requestMessages, prompt);
-      const elapsedSeconds = (performance.now() - startedAt) / 1000;
-      const usage = json.usage ?? {};
-      const completionTokens = usage.completion_tokens ?? 0;
-      const promptTokens = usage.prompt_tokens ?? 0;
-      const totalTokens = usage.total_tokens ?? 0;
-      const completionTps =
-        completionTokens > 0 ? (completionTokens / elapsedSeconds).toFixed(2) : "n/a";
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
 
-      setMessages((current) => [
-        ...current,
-        {
-          role: "assistant",
-          content: normalized.content
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE는 \n\n 으로 이벤트 구분
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+
+        for (const ev of events) {
+          const line = ev.trim();
+          if (!line.startsWith("data:")) continue;
+          const dataStr = line.slice("data:".length).trim();
+          if (dataStr === "[DONE]") {
+            buffer = "";
+            break;
+          }
+          let data: any;
+          try {
+            data = JSON.parse(dataStr);
+          } catch {
+            continue;
+          }
+          lastChunk = data;
+
+          // 커스텀 이벤트
+          if (data.type === "tool_call_start") {
+            toolCalls += 1;
+            appendToolEvent(setMessages, assistantIdx, {
+              kind: "start",
+              name: data.name,
+              argsPreview: data.args_preview ?? ""
+            });
+            setStatus(`🔧 ${data.name} 호출 중...`);
+            continue;
+          }
+          if (data.type === "tool_call_end") {
+            appendToolEvent(setMessages, assistantIdx, {
+              kind: "end",
+              name: data.name,
+              durationMs: data.duration_ms ?? 0,
+              resultSize: data.result_size ?? 0,
+              error: !!data.error
+            });
+            setStatus(`✓ ${data.name} (${data.duration_ms}ms, ${data.result_size}B)`);
+            continue;
+          }
+          if (data.type === "status") {
+            setStatus(data.message || "");
+            continue;
+          }
+
+          // OpenAI 표준 chunk
+          const choice = data.choices?.[0];
+          if (!choice) continue;
+          const delta = choice.delta || {};
+
+          if (typeof delta.content === "string" && delta.content.length > 0) {
+            appendAssistantContent(setMessages, assistantIdx, delta.content);
+          }
+          // vLLM은 reasoning_parser=qwen3에서 `reasoning` 필드 사용. OpenAI 표준은 `reasoning_content`.
+          const reasoningChunk = delta.reasoning_content ?? delta.reasoning;
+          if (typeof reasoningChunk === "string" && reasoningChunk.length > 0) {
+            appendAssistantReasoning(setMessages, assistantIdx, reasoningChunk);
+          }
+
+          if (data.usage) {
+            totalCompletionTokens = data.usage.completion_tokens ?? totalCompletionTokens;
+            totalPromptTokens = data.usage.prompt_tokens ?? totalPromptTokens;
+          }
         }
-      ]);
-      setRawJson(
-        JSON.stringify(
-          {
-            backend_response: json,
-            korean_normalization: {
-              didRetry: normalized.didRetry,
-              strategy: normalized.strategy,
-              failed: normalized.failed,
-              final_content: normalized.content,
-              retry_raw_content: normalized.rawRetryContent ?? null
-            }
-          },
-          null,
-          2
-        )
-      );
+
+        if (events.length > 0 && events[events.length - 1].includes("[DONE]")) break;
+      }
+
+      const elapsedSeconds = (performance.now() - startedAt) / 1000;
+      setStatus(`완료 (${elapsedSeconds.toFixed(1)}s, tool ${toolCalls}회)`);
       setMetrics(
         [
           `elapsed_s: ${elapsedSeconds.toFixed(2)}`,
-          `prompt_tokens: ${promptTokens}`,
-          `completion_tokens: ${completionTokens}`,
-          `total_tokens: ${totalTokens}`,
-          `completion_tps: ${completionTps}`,
-          `thinking_disabled: ${disableThinking ? "true" : "false"}`,
-          `korean_regenerated: ${normalized.didRetry ? "true" : "false"}`,
-          `korean_normalization_strategy: ${normalized.strategy}`,
-          `korean_normalization_failed: ${normalized.failed ? "true" : "false"}`
+          `tool_calls: ${toolCalls}`,
+          `prompt_tokens: ${totalPromptTokens || "n/a"}`,
+          `completion_tokens: ${totalCompletionTokens || "n/a"}`
         ].join("\n")
       );
-      setStatus("Request complete.");
+      setRawJson(JSON.stringify(lastChunk ?? {}, null, 2));
     } catch (error) {
       const message = getErrorMessage(error);
-      setMessages((current) => [
-        ...current,
-        {
-          role: "assistant",
-          content: `Request failed.\n${message}`
-        }
-      ]);
-      setStatus(`Request failed.\n${message}`);
+      appendAssistantContent(setMessages, assistantIdx, `\n\n⚠ 오류: ${message}`);
+      setStatus(`오류: ${message}`);
     } finally {
       setIsSending(false);
+      abortRef.current = null;
     }
   }
 
-  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.nativeEvent.isComposing) {
-      return;
-    }
+  function handleAbort() {
+    abortRef.current?.abort();
+    setStatus("사용자가 중단함.");
+  }
 
+  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.nativeEvent.isComposing) return;
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       composerFormRef.current?.requestSubmit();
     }
   }
 
-  async function normalizeKoreanAnswer(
-    content: string,
-    requestMessages: ChatMessage[],
-    userPrompt: string
-  ): Promise<KoreanNormalizationResult> {
-    if (!containsForeignScriptNoise(content)) {
-      return {
-        content,
-        didRetry: false,
-        strategy: "none",
-        failed: false
-      };
-    }
-
-    const localFallback = buildLocalKoreanFallback(userPrompt);
-    if (localFallback) {
-      return {
-        content: localFallback,
-        didRetry: false,
-        strategy: "local-fallback",
-        failed: false,
-        rawRetryContent: content
-      };
-    }
-
-    try {
-      const response = await fetch("/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model,
-          messages: buildKoreanRetryMessages(requestMessages),
-          temperature: 0,
-          max_tokens: 512,
-          chat_template_kwargs: {
-            enable_thinking: false
-          }
-        })
-      });
-
-      const json = (await response.json()) as ChatResponse;
-      const retried = json.choices?.[0]?.message?.content?.trim();
-
-      if (!response.ok || !retried) {
-        return {
-          content: "응답을 한국어로 다시 생성하지 못했습니다. 같은 질문을 한 번 더 보내 주세요.",
-          didRetry: true,
-          strategy: "regenerate-failed",
-          failed: true
-        };
-      }
-
-      if (!containsForeignScriptNoise(retried)) {
-        return {
-          content: retried,
-          didRetry: true,
-          strategy: "regenerate-in-korean",
-          failed: false,
-          rawRetryContent: retried
-        };
-      }
-
-      return {
-        content: "응답이 한국어 정책을 다시 위반해서 표시하지 않았습니다. 같은 질문을 한 번 더 보내 주세요.",
-        didRetry: true,
-        strategy: "regenerate-blocked",
-        failed: true,
-        rawRetryContent: retried
-      };
-    } catch {
-      return {
-        content: "응답을 한국어로 다시 생성하지 못했습니다. 같은 질문을 한 번 더 보내 주세요.",
-        didRetry: true,
-        strategy: "regenerate-error",
-        failed: true
-      };
-    };
-  }
-
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand-block">
-          <p className="eyebrow">Proxy Chat</p>
-          <h1>Qwen React UI</h1>
+          <p className="eyebrow">urban-chat</p>
+          <h1>Qwen × urban_mcp</h1>
           <p className="lede">
-            Vite dev server proxies <code>/api</code> to the local load balancer on
-            <code> 127.0.0.1:8020</code>.
+            자연어 질의 → urban_mcp 도구 자동 호출 → 한국어 답변. <code>/api</code> ↔ bridge:8090.
           </p>
         </div>
 
@@ -346,37 +278,28 @@ export default function App() {
                 onClick={() => void loadModels()}
                 disabled={isLoadingModels}
               >
-                {isLoadingModels ? "Loading..." : "Reload"}
+                {isLoadingModels ? "..." : "새로고침"}
               </button>
             </div>
           </div>
 
           <div className="field">
-            <label htmlFor="systemPrompt">System prompt</label>
+            <label htmlFor="systemPrompt">System prompt (사용자 추가)</label>
             <textarea
               id="systemPrompt"
               value={systemPrompt}
               onChange={(event) => setSystemPrompt(event.target.value)}
-              placeholder="Optional system instruction"
-              rows={4}
+              placeholder="브릿지 system prompt와 합쳐짐"
+              rows={3}
             />
           </div>
-
-          <label className="checkbox-field">
-            <input
-              type="checkbox"
-              checked={disableThinking}
-              onChange={(event) => setDisableThinking(event.target.checked)}
-            />
-            <span>Disable reasoning output</span>
-          </label>
         </section>
 
         <section className="panel">
           <p className="panel-title">Status</p>
           <pre className="status-box">{status}</pre>
           <p className="panel-title">Metrics</p>
-          <pre className="status-box">{metrics || "No request yet."}</pre>
+          <pre className="status-box">{metrics || "요청 없음"}</pre>
         </section>
       </aside>
 
@@ -384,25 +307,38 @@ export default function App() {
         <section className="chat-panel">
           <div className="chat-header">
             <div>
-              <p className="eyebrow">Conversation</p>
-              <h2>Proxy-backed chat</h2>
+              <p className="eyebrow">대화</p>
+              <h2>도시 분석 · 자연어</h2>
             </div>
-            <span className="badge">{disableThinking ? "No-think" : "Thinking"}</span>
+            <span className="badge">streaming</span>
           </div>
 
           <div className="message-list">
             {messages.map((message, index) => (
               <article key={`${message.role}-${index}`} className={`message ${message.role}`}>
                 <p className="message-role">{message.role}</p>
-                <p className="message-content">{message.content}</p>
+                {message.reasoning ? (
+                  <details className="reasoning-block">
+                    <summary>thinking ({message.reasoning.length} chars)</summary>
+                    <pre>{message.reasoning}</pre>
+                  </details>
+                ) : null}
+                {message.toolEvents && message.toolEvents.length > 0 ? (
+                  <ul className="tool-events">
+                    {message.toolEvents.map((te, i) =>
+                      te.kind === "start" ? (
+                        <li key={i} className="tool-start">🔧 {te.name}({te.argsPreview})</li>
+                      ) : (
+                        <li key={i} className={te.error ? "tool-end error" : "tool-end ok"}>
+                          {te.error ? "✗" : "✓"} {te.name} · {te.durationMs}ms · {te.resultSize}B
+                        </li>
+                      )
+                    )}
+                  </ul>
+                ) : null}
+                <p className="message-content">{message.content || (isSending && index === messages.length - 1 ? "..." : "")}</p>
               </article>
             ))}
-            {isSending ? (
-              <article className="message assistant pending">
-                <p className="message-role">assistant</p>
-                <p className="message-content">Generating response...</p>
-              </article>
-            ) : null}
             <div ref={messagesEndRef} />
           </div>
 
@@ -411,17 +347,23 @@ export default function App() {
               value={input}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={handleComposerKeyDown}
-              placeholder="Ask the model something..."
-              rows={5}
+              placeholder="자연어 질의를 입력하세요"
+              rows={4}
             />
             <div className="composer-row">
               <p className="composer-hint">
-                Enter sends. Shift+Enter inserts a new line. Frontend calls
-                <code> /api/v1/chat/completions</code>.
+                Enter 전송 · Shift+Enter 줄바꿈
               </p>
-              <button type="submit" className="primary-button" disabled={isSending}>
-                {isSending ? "Sending..." : "Send"}
-              </button>
+              <div style={{ display: "flex", gap: 8 }}>
+                {isSending ? (
+                  <button type="button" className="secondary-button" onClick={handleAbort}>
+                    중단
+                  </button>
+                ) : null}
+                <button type="submit" className="primary-button" disabled={isSending}>
+                  {isSending ? "스트리밍 중..." : "전송"}
+                </button>
+              </div>
             </div>
           </form>
         </section>
@@ -430,10 +372,10 @@ export default function App() {
           <div className="chat-header">
             <div>
               <p className="eyebrow">Debug</p>
-              <h2>Raw JSON</h2>
+              <h2>마지막 chunk</h2>
             </div>
           </div>
-          <pre className="json-box">{rawJson || "No response yet."}</pre>
+          <pre className="json-box">{rawJson || "응답 없음"}</pre>
         </section>
       </main>
     </div>
@@ -441,68 +383,57 @@ export default function App() {
 }
 
 function getErrorMessage(error: unknown) {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
+  if (error instanceof Error) return error.message;
   return String(error);
 }
 
-function containsForeignScriptNoise(text: string) {
-  const hasJapaneseKana = /[\u3040-\u30ff\u31f0-\u31ff]/.test(text);
-  const hasRepeatedCjk = /[\u4e00-\u9fff]{2,}/.test(text);
-  const hasJapanesePunctuation = /[「」『』〜々〆ヵヶ]/.test(text);
-
-  return hasJapaneseKana || hasRepeatedCjk || hasJapanesePunctuation;
+function appendAssistantContent(
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
+  idx: number,
+  chunk: string
+) {
+  setMessages((current) => {
+    const next = [...current];
+    if (next[idx]) {
+      next[idx] = {
+        ...next[idx],
+        content: (next[idx].content || "") + chunk
+      };
+    }
+    return next;
+  });
 }
 
-function buildKoreanRetryMessages(requestMessages: ChatMessage[]): ChatMessage[] {
-  const retrySystemPrompt = [
-    DEFAULT_SYSTEM_PROMPT,
-    "직전 응답은 한국어 정책을 위반해 폐기되었다.",
-    "이전 응답을 번역하거나 다듬지 말고 같은 질문에 대해 처음부터 새로 답하라.",
-    "반드시 한국어 문장만 사용하라.",
-    "한자, 히라가나, 가타카나, 일본어, 중국어 문장을 출력하지 마라.",
-    "설명이나 사족 없이 최종 답변 본문만 출력하라."
-  ].join(" ");
-
-  return [
-    {
-      role: "system",
-      content: retrySystemPrompt
-    },
-    ...requestMessages.filter((message) => message.role !== "system")
-  ];
+function appendAssistantReasoning(
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
+  idx: number,
+  chunk: string
+) {
+  setMessages((current) => {
+    const next = [...current];
+    if (next[idx]) {
+      next[idx] = {
+        ...next[idx],
+        reasoning: (next[idx].reasoning || "") + chunk
+      };
+    }
+    return next;
+  });
 }
 
-function buildLocalKoreanFallback(userPrompt: string) {
-  const normalized = userPrompt.replace(/\s+/g, " ").trim().toLowerCase();
-
-  if (
-    /무슨\s*모델|어떤\s*모델|정체|누구(야|임|냐)?|뭐하는|무엇을\s*하는|너\s*뭐/.test(
-      normalized
-    )
-  ) {
-    return [
-      "저는 Qwen 계열 기반으로 동작하는 AI 어시스턴트입니다.",
-      "질문 답변, 요약, 글쓰기, 코드 설명과 같은 작업을 한국어로 도와드릴 수 있습니다."
-    ].join(" ");
-  }
-
-  if (
-    /뭐.*할\s*수|무엇.*할\s*수|가능한\s*일|도움.*줄|기능|지원\s*가능|해줄\s*수/.test(
-      normalized
-    )
-  ) {
-    return [
-      "저는 질문 답변, 요약, 문서 작성, 코드 설명, 초안 작성 같은 작업을 도와드릴 수 있습니다.",
-      "원하는 작업을 한국어로 바로 말씀해 주세요."
-    ].join(" ");
-  }
-
-  if (/안녕|반가워|처음|헬로|hello|hi|도와줘/.test(normalized)) {
-    return "안녕하세요. 한국어로 질문해 주시면 답변, 요약, 글쓰기, 코드 관련 작업을 도와드릴 수 있습니다.";
-  }
-
-  return null;
+function appendToolEvent(
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
+  idx: number,
+  event: ToolEvent
+) {
+  setMessages((current) => {
+    const next = [...current];
+    if (next[idx]) {
+      next[idx] = {
+        ...next[idx],
+        toolEvents: [...(next[idx].toolEvents || []), event]
+      };
+    }
+    return next;
+  });
 }

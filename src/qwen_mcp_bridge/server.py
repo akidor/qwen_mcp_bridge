@@ -6,11 +6,12 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from qwen_mcp_bridge.config import get_settings
 from qwen_mcp_bridge.mcp_pool import McpPool
 from qwen_mcp_bridge.chat_loop import run_chat, MaxIterReached
+from qwen_mcp_bridge.chat_loop_streaming import run_chat_streaming
 from qwen_mcp_bridge.prompts import build_system_prompt
 
 
@@ -73,6 +74,26 @@ async def chat_completions(request: Request) -> Any:
         merged_messages = [{"role": "system", "content": combined}, *rest]
     else:
         merged_messages = [{"role": "system", "content": bridge_system_content}, *user_messages]
+
+    # stream=true면 SSE 스트리밍 응답
+    if body.get("stream") is True:
+        gen = run_chat_streaming(
+            messages=merged_messages,
+            pool=pool,
+            vllm_base_url=settings.vllm_base_url,
+            vllm_api_key=settings.vllm_api_key,
+            model=body.get("model") or settings.vllm_model,
+            max_iterations=settings.max_tool_iterations,
+            request_timeout=settings.vllm_timeout,
+        )
+        return StreamingResponse(
+            gen,
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     try:
         result = await run_chat(
