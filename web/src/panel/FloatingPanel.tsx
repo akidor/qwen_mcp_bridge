@@ -84,7 +84,7 @@ export default function FloatingPanel({ map, basemap, setBasemap }: FloatingPane
       {/* 모든 탭을 항상 마운트하고 visibility만 토글 — ChatTab의 messages/input local state가
           탭 전환 시 초기화되지 않게 함. 비활성 탭은 display:none. */}
       <div className="panel-body">
-        <div style={{ display: activeTab === "chat" ? "block" : "none", height: "100%" }}>
+        <div className={`tab-pane ${activeTab === "chat" ? "" : "hidden"}`}>
           <ChatTab
             model={model}
             systemPrompt={systemPrompt}
@@ -93,7 +93,7 @@ export default function FloatingPanel({ map, basemap, setBasemap }: FloatingPane
             onToolResult={handleToolResult}
           />
         </div>
-        <div style={{ display: activeTab === "settings" ? "block" : "none" }}>
+        <div className={`tab-pane ${activeTab === "settings" ? "" : "hidden"}`}>
           <SettingsTab
             map={map}
             model={model}
@@ -110,7 +110,7 @@ export default function FloatingPanel({ map, basemap, setBasemap }: FloatingPane
             setBuildingsEnabled={setBuildingsEnabled}
           />
         </div>
-        <div style={{ display: activeTab === "debug" ? "block" : "none" }}>
+        <div className={`tab-pane ${activeTab === "debug" ? "" : "hidden"}`}>
           <DebugTab
             map={map}
             lastChunk={lastChunk}
