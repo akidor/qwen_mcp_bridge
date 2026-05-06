@@ -177,13 +177,38 @@ function addLineLayer(map: any, fc: any, layerId: string, color: string): ApplyR
   const sourceId = `${layerId}-src`;
   if (map.getSource(sourceId)) return { layerId, message: "이미 존재" };
   map.addSource(sourceId, { type: "geojson", data: fc });
+  // dlof_landing 스타일 — 흰 outline 5px + 색 dashed 3px (가독성)
+  map.addLayer({
+    id: `${layerId}-ln-bg`,
+    type: "line",
+    source: sourceId,
+    paint: { "line-color": "#ffffff", "line-width": 5, "line-opacity": 0.95 },
+  });
   map.addLayer({
     id: `${layerId}-ln`,
     type: "line",
     source: sourceId,
-    paint: { "line-color": color, "line-width": 3 },
+    paint: {
+      "line-color": color,
+      "line-width": 3,
+      "line-dasharray": [2, 2],
+    },
   });
-  return { layerId, message: `line 추가됨 (${layerId})` };
+  // duration / distance 라벨 (LineString placement)
+  addLabelLayer(
+    map,
+    layerId,
+    sourceId,
+    [
+      "case",
+      ["has", "duration"],
+      ["concat", ["to-string", ["round", ["get", "duration"]]], "분"],
+      "",
+    ],
+    color,
+    { offset: [0, 0], size: 12 },
+  );
+  return { layerId, message: `route 추가됨 (${layerId})` };
 }
 
 function addIsochroneFc(map: any, fc: any, layerId: string): ApplyResult {
@@ -320,8 +345,8 @@ export function applyToolResult(map: any, toolName: string, resultText: string):
 
 /** layer 표시/숨김 토글. */
 export function toggleLayer(map: any, layerId: string, visible: boolean): void {
-  // sub-layer 접미사 (-fill / -line / -pt / -ln / -label)를 한꺼번에 토글.
-  const suffixes = ["-fill", "-line", "-pt", "-ln", "-label"];
+  // sub-layer 접미사 (-fill / -line / -pt / -ln / -ln-bg / -label)를 한꺼번에 토글.
+  const suffixes = ["-fill", "-line", "-pt", "-ln", "-ln-bg", "-label"];
   const visibility = visible ? "visible" : "none";
   for (const sfx of suffixes) {
     const id = `${layerId}${sfx}`;
