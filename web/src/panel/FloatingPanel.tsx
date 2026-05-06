@@ -1,5 +1,7 @@
 import { useState } from "react";
 import ChatTab from "./ChatTab";
+import SettingsTab from "./SettingsTab";
+import DebugTab from "./DebugTab";
 import { BasemapKind } from "../map/basemaps";
 import { applyToolResult, fitToBbox } from "../map/auto_layer";
 
@@ -28,6 +30,7 @@ export default function FloatingPanel({ map, basemap, setBasemap }: FloatingPane
     message: string;
     bbox?: [number, number, number, number];
   }[]>([]);
+  const [layerVisibility, setLayerVisibility] = useState<Record<string, boolean>>({});
 
   function handleToolResult(toolName: string, resultText: string) {
     const ts = Date.now();
@@ -87,24 +90,25 @@ export default function FloatingPanel({ map, basemap, setBasemap }: FloatingPane
           />
         )}
         {activeTab === "settings" && (
-          <div className="settings-tab">
-            <p style={{ color: "#7c3aed", fontSize: 11, letterSpacing: "0.06em", margin: 0 }}>
-              SETTINGS — T6에서 본 구현
-            </p>
-            <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
-              현재: model={model}, basemap={basemap}, thinking={disableThinking ? "off" : "on"}
-            </p>
-          </div>
+          <SettingsTab
+            model={model}
+            setModel={setModel}
+            systemPrompt={systemPrompt}
+            setSystemPrompt={setSystemPrompt}
+            disableThinking={disableThinking}
+            setDisableThinking={setDisableThinking}
+            basemap={basemap}
+            setBasemap={setBasemap}
+          />
         )}
         {activeTab === "debug" && (
-          <div className="debug-tab">
-            <p style={{ color: "#7c3aed", fontSize: 11, letterSpacing: "0.06em", margin: 0 }}>
-              DEBUG — T6에서 본 구현
-            </p>
-            <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
-              tool calls: {toolHistory.length} · last chunk: {lastChunk ? "있음" : "없음"}
-            </p>
-          </div>
+          <DebugTab
+            map={map}
+            lastChunk={lastChunk}
+            toolHistory={toolHistory}
+            layerVisibility={layerVisibility}
+            setLayerVisibility={setLayerVisibility}
+          />
         )}
       </div>
     </div>
