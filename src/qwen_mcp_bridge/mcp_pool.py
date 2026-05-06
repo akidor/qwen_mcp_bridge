@@ -21,6 +21,47 @@ DOMAINS: tuple[str, ...] = (
 )
 
 
+def _coerce_args(args: dict, schema: dict | None) -> dict:
+    """Qwen이 정수/실수/불리언 인자를 문자열로 따옴표 처리해 보낼 때 schema 보고 자동 변환.
+
+    JSON Schema의 properties에서 type이 'integer' / 'number' / 'boolean'을 포함하면
+    string 입력을 시도적으로 cast. 변환 실패하면 원본 유지.
+    """
+    if not isinstance(args, dict) or not schema:
+        return args
+    props = schema.get("properties") or {}
+    if not isinstance(props, dict):
+        return args
+    out = dict(args)
+    for key, value in args.items():
+        if not isinstance(value, str):
+            continue
+        prop_def = props.get(key)
+        if not isinstance(prop_def, dict):
+            continue
+        types = prop_def.get("type")
+        allowed = set(types) if isinstance(types, list) else ({types} if types else set())
+        if "integer" in allowed:
+            try:
+                out[key] = int(value)
+                continue
+            except (TypeError, ValueError):
+                pass
+        if "number" in allowed:
+            try:
+                out[key] = float(value)
+                continue
+            except (TypeError, ValueError):
+                pass
+        if "boolean" in allowed:
+            v = value.lower()
+            if v in {"true", "1", "yes"}:
+                out[key] = True
+            elif v in {"false", "0", "no"}:
+                out[key] = False
+    return out
+
+
 class PoolNotReadyError(RuntimeError):
     """McpPool.start()가 끝나기 전에 dispatch 호출됨."""
 
@@ -105,7 +146,17 @@ class McpPool:
             raise KeyError(
                 f"도메인 '{domain}'은 풀에 없습니다 (available={available})"
             )
-        return await session.call_tool(tool_name, args)
+        # Qwen은 종종 정수/실수 인자를 문자열로 따옴표 처리해 보냄 ("5" 대신 5).
+        # 도구의 inputSchema와 비교해 안전한 coerce 적용.
+        schema = self._tool_schema(domain, tool_name)
+        coerced = _coerce_args(args, schema)
+        return await session.call_tool(tool_name, coerced)
+
+    def _tool_schema(self, domain: str, tool_name: str) -> dict | None:
+        for t in self._tools_by_domain.get(domain) or []:
+            if getattr(t, "name", None) == tool_name:
+                return getattr(t, "inputSchema", None)
+        return None
 
     def health(self) -> dict:
         return {
