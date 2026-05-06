@@ -1,6 +1,7 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { getChartSpec, MiniChart } from "../charts/auto_chart";
 
 type ChatRole = "user" | "assistant" | "system";
 
@@ -173,16 +174,24 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
               </details>
             ) : null}
             {message.toolEvents && message.toolEvents.length > 0 ? (
-              <div className="tool-pills">
-                {message.toolEvents.map((te, i) =>
-                  te.kind === "start" ? (
-                    <span key={i} className="tool-pill running">🔧 {te.name}</span>
-                  ) : (
-                    <span key={i} className={`tool-pill ${te.error ? "err" : "ok"}`}>
-                      {te.error ? "✗" : "✓"} {te.name} · {te.durationMs}ms · {te.resultSize}B
-                    </span>
-                  )
-                )}
+              <div className="tool-events-block">
+                <div className="tool-pills">
+                  {message.toolEvents.map((te, i) =>
+                    te.kind === "start" ? (
+                      <span key={i} className="tool-pill running">🔧 {te.name}</span>
+                    ) : (
+                      <span key={i} className={`tool-pill ${te.error ? "err" : "ok"}`}>
+                        {te.error ? "✗" : "✓"} {te.name} · {te.durationMs}ms · {te.resultSize}B
+                      </span>
+                    )
+                  )}
+                </div>
+                {message.toolEvents.map((te, i) => {
+                  if (te.kind !== "end" || te.error || !te.resultText) return null;
+                  const spec = getChartSpec(te.name, te.resultText);
+                  if (!spec) return null;
+                  return <MiniChart key={`chart-${i}`} spec={spec} />;
+                })}
               </div>
             ) : null}
             {message.role === "assistant" ? (
