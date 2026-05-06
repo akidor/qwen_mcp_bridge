@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import MapView from "./map/MapView";
 import { BasemapKind } from "./map/basemaps";
 import FloatingPanel from "./panel/FloatingPanel";
@@ -56,28 +56,11 @@ export default function App() {
     };
   }, [wmsReloadToken]);
 
+  const onDrawCreateRef = useRef<(e: any) => void>(() => {});
+  const onDrawDeleteRef = useRef<(e: any) => void>(() => {});
+
   useEffect(() => {
-    if (!mapInstance) return;
-    if (drawEnabled && !drawInstance) {
-      const draw = createDraw();
-      mapInstance.addControl(draw as any, "top-left");
-      mapInstance.on("draw.create", onDrawCreateOrUpdate);
-      mapInstance.on("draw.update", onDrawCreateOrUpdate);
-      mapInstance.on("draw.delete", onDrawDelete);
-      setDrawInstance(draw);
-    } else if (!drawEnabled && drawInstance) {
-      mapInstance.off("draw.create", onDrawCreateOrUpdate);
-      mapInstance.off("draw.update", onDrawCreateOrUpdate);
-      mapInstance.off("draw.delete", onDrawDelete);
-      try {
-        mapInstance.removeControl(drawInstance);
-      } catch {
-        // ignore
-      }
-      setDrawInstance(null);
-      setDrawnFeatures([]);
-    }
-    function onDrawCreateOrUpdate(e: any) {
+    onDrawCreateRef.current = (e: any) => {
       const features: any[] = e?.features ?? [];
       setDrawnFeatures((cur) => {
         const byId = new Map(cur.map((f) => [f.id, f]));
@@ -97,21 +80,48 @@ export default function App() {
         }
         return Array.from(byId.values());
       });
-    }
-    function onDrawDelete(e: any) {
+    };
+    onDrawDeleteRef.current = (e: any) => {
       const ids = new Set<string>((e?.features ?? []).map((f: any) => String(f.id)));
       setDrawnFeatures((cur) => cur.filter((f) => !ids.has(f.id)));
-    }
-  }, [mapInstance, drawEnabled, drawInstance]);
+    };
+  });
+
+  useEffect(() => {
+    if (!mapInstance || !drawEnabled) return;
+    const draw = createDraw();
+    const onCreate = (e: any) => onDrawCreateRef.current(e);
+    const onDelete = (e: any) => onDrawDeleteRef.current(e);
+    mapInstance.addControl(draw as any, "top-left");
+    mapInstance.on("draw.create", onCreate);
+    mapInstance.on("draw.update", onCreate);
+    mapInstance.on("draw.delete", onDelete);
+    setDrawInstance(draw);
+    return () => {
+      mapInstance.off("draw.create", onCreate);
+      mapInstance.off("draw.update", onCreate);
+      mapInstance.off("draw.delete", onDelete);
+      try {
+        mapInstance.removeControl(draw);
+      } catch {
+        // ignore
+      }
+      setDrawInstance(null);
+      setDrawnFeatures([]);
+    };
+  }, [mapInstance, drawEnabled]);
 
   function toggleDrawnFeatureVisible(id: string) {
     setDrawnFeatures((cur) =>
-      cur.map((f) => (f.id === id ? { ...f, visible: !f.visible } : f))
+      cur.map((f) => {
+        if (f.id !== id) return f;
+        const nextVisible = !f.visible;
+        if (drawInstance && typeof drawInstance.setFeatureProperty === "function") {
+          drawInstance.setFeatureProperty(id, "visible", nextVisible);
+        }
+        return { ...f, visible: nextVisible };
+      })
     );
-    if (drawInstance && typeof drawInstance.setFeatureProperty === "function") {
-      const f = drawnFeatures.find((x) => x.id === id);
-      if (f) drawInstance.setFeatureProperty(id, "visible", !f.visible);
-    }
   }
 
   function removeDrawnFeature(id: string) {
