@@ -740,3 +740,53 @@ body {
   text-align: right;
   font-family: ui-monospace, SFMono-Regular, monospace;
 }
+
+/* === P13 WMS Tree === */
+.tree-leaf-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--fg);
+}
+.tree-leaf-label input[type="checkbox"] {
+  margin: 0;
+}
+.tree-folder-summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--fg);
+  list-style: none;
+  padding: 2px 0;
+  user-select: none;
+}
+.tree-folder.disabled .tree-folder-summary {
+  color: var(--fg-muted);
+  cursor: not-allowed;
+}
+.tree-opacity-slider {
+  width: 60px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.tree-reload-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg-muted);
+  padding: 0 6px;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.tree-reload-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.layer-section-error {
+  font-size: 11px;
+  color: #c62828;
+  padding: 6px 8px;
+  background: rgba(198, 40, 40, 0.06);
+  border-radius: 4px;
+}

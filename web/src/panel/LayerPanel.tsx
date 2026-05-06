@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   BasemapKind,
   BASEMAP_ORDER,
@@ -6,6 +6,9 @@ import {
   setBuildingsEnabled as applyBuildings,
 } from "../map/basemaps";
 import { toggleLayer, fitToBbox, setLayerOpacity as applyLayerOpacity, hasFillLayer } from "../map/auto_layer";
+import { addWmsLayer, removeWmsLayer, setWmsOpacity as applyWmsOpacity, hasWmsLayer } from "../map/auto_layer";
+import WmsTreeNodeView from "./WmsTreeNode";
+import type { WmsTreeNode } from "../wms/types";
 import { getChartSpec, ChartSpec } from "../charts/auto_chart";
 import ChartModal from "../charts/ChartModal";
 
@@ -31,6 +34,14 @@ interface LayerPanelProps {
   setLayerVisibility: (next: Record<string, boolean>) => void;
   layerOpacity: Record<string, number>;
   setLayerOpacity: (next: Record<string, number>) => void;
+  wmsTree: WmsTreeNode[];
+  wmsTreeError: string | null;
+  wmsTreeLoading: boolean;
+  selectedWmsKeys: Set<string>;
+  setSelectedWmsKeys: (next: Set<string>) => void;
+  wmsOpacity: Record<string, number>;
+  setWmsOpacity: (next: Record<string, number>) => void;
+  onReloadWmsTree: () => void;
 }
 
 const DOMAIN_INFO: Record<string, { icon: string; label: string }> = {
@@ -44,17 +55,62 @@ const DOMAIN_INFO: Record<string, { icon: string; label: string }> = {
   export: { icon: "📤", label: "Export" },
 };
 
-const STATIC_OVERLAYS = [
-  { id: "parcel", label: "필지 (gus:parcel)" },
-  { id: "building", label: "건물 (gus_3dsim:...)" },
-  { id: "eum_aa", label: "용도지역 (eum_aa)" },
-  { id: "eum_ab", label: "용도지구 (eum_ab)" },
-  { id: "eum_ac", label: "용도구역 (eum_ac)" },
-];
-
 export default function LayerPanel(props: LayerPanelProps) {
   const [open, setOpen] = useState(false);
   const [modalSpec, setModalSpec] = useState<ChartSpec | null>(null);
+
+  const wmsLayerInfo = useMemo(() => {
+    const info = new Map<string, { layer: string; cqlFilter?: string }>();
+    function walk(nodes: WmsTreeNode[]) {
+      for (const n of nodes) {
+        if (n.isLeaf && n.layer) info.set(n.id, { layer: n.layer, cqlFilter: n.cqlFilter });
+        if (n.children.length) walk(n.children);
+      }
+    }
+    walk(props.wmsTree);
+    return info;
+  }, [props.wmsTree]);
+
+  useEffect(() => {
+    if (!props.map) return;
+    // 추가
+    for (const key of props.selectedWmsKeys) {
+      const info = wmsLayerInfo.get(key);
+      if (info && !hasWmsLayer(props.map, key)) {
+        addWmsLayer(props.map, key, info.layer, info.cqlFilter);
+        const op = props.wmsOpacity[key];
+        if (typeof op === "number") applyWmsOpacity(props.map, key, op);
+      }
+    }
+    // 제거 — props.map의 wms-* layer 중 selected에 없는 것
+    if (props.map.getStyle && props.map.getStyle()) {
+      const style = props.map.getStyle();
+      const layers = style.layers || [];
+      for (const layer of layers) {
+        if (typeof layer.id === "string" && layer.id.startsWith("wms-")) {
+          const key = layer.id.slice(4);
+          if (!props.selectedWmsKeys.has(key)) removeWmsLayer(props.map, key);
+        }
+      }
+    }
+    // opacity 동기화
+    for (const [key, op] of Object.entries(props.wmsOpacity)) {
+      if (props.selectedWmsKeys.has(key) && hasWmsLayer(props.map, key)) {
+        applyWmsOpacity(props.map, key, op);
+      }
+    }
+  }, [props.map, props.selectedWmsKeys, props.wmsOpacity, wmsLayerInfo]);
+
+  function toggleWmsSelect(key: string) {
+    const next = new Set(props.selectedWmsKeys);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    props.setSelectedWmsKeys(next);
+  }
+
+  function setOneWmsOpacity(key: string, op: number) {
+    props.setWmsOpacity({ ...props.wmsOpacity, [key]: op });
+  }
 
   function handleTerrainToggle() {
     const next = !props.terrainEnabled;
@@ -246,20 +302,51 @@ export default function LayerPanel(props: LayerPanelProps) {
           )}
         </div>
 
-        {/* 정적 Overlay placeholder */}
+        {/* WMS Overlay (P13) */}
         <div className="layer-section">
-          <div className="layer-section-title">🔌 정적 Overlay</div>
-          <ul className="tree-children disabled">
-            {STATIC_OVERLAYS.map((o) => (
-              <li
-                key={o.id}
-                className="tree-item disabled"
-                title="Geoserver WMS proxy 필요. 12차에서 활성화 예정."
+          <div className="layer-section-title">
+            🔌 WMS Overlay
+            <button
+              className="tree-reload-btn"
+              onClick={props.onReloadWmsTree}
+              title="WMS 트리 다시 불러오기"
+              style={{ marginLeft: 6 }}
+            >
+              ↻
+            </button>
+          </div>
+          {props.wmsTreeLoading && (
+            <div className="layer-section-placeholder">WMS 트리 로딩 중…</div>
+          )}
+          {props.wmsTreeError && (
+            <div className="layer-section-error">
+              {props.wmsTreeError}
+              <button
+                onClick={props.onReloadWmsTree}
+                className="tree-reload-btn"
+                style={{ marginLeft: 8 }}
               >
-                <span className="tree-item-name">⊘ {o.label}</span>
-              </li>
-            ))}
-          </ul>
+                재시도
+              </button>
+            </div>
+          )}
+          {!props.wmsTreeLoading && !props.wmsTreeError && props.wmsTree.length === 0 && (
+            <div className="layer-section-placeholder">WMS layer 없음</div>
+          )}
+          {!props.wmsTreeLoading && !props.wmsTreeError && props.wmsTree.length > 0 && (
+            <ul className="tree-children">
+              {props.wmsTree.map((root) => (
+                <WmsTreeNodeView
+                  key={root.id}
+                  node={root}
+                  selectedKeys={props.selectedWmsKeys}
+                  toggleSelect={(key) => toggleWmsSelect(key)}
+                  opacity={props.wmsOpacity}
+                  setOpacity={setOneWmsOpacity}
+                />
+              ))}
+            </ul>
+          )}
         </div>
 
         <ChartModal spec={modalSpec} onClose={() => setModalSpec(null)} />
