@@ -12,8 +12,22 @@ export default defineConfig({
         changeOrigin: true,
         timeout: 0,
         proxyTimeout: 0,
-        rewrite: (path) => path.replace(/^\/api/, "")
-      }
-    }
-  }
+        rewrite: (path) => path.replace(/^\/api/, ""),
+      },
+      "/wmsapi": {
+        target: "http://175.208.134.144:2521",
+        changeOrigin: true,
+        timeout: 0,
+        proxyTimeout: 0,
+        rewrite: (path) => path.replace(/^\/wmsapi/, ""),
+      },
+      "/geoserver": {
+        target: "https://gsvr.dlof.kr",
+        changeOrigin: true,
+        secure: true,
+        timeout: 0,
+        proxyTimeout: 0,
+      },
+    },
+  },
 });
