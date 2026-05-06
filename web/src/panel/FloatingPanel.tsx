@@ -1,4 +1,8 @@
+import { useState } from "react";
+import ChatTab from "./ChatTab";
 import { BasemapKind } from "../map/basemaps";
+
+type TabName = "chat" | "settings" | "debug";
 
 interface FloatingPanelProps {
   map: any;
@@ -6,33 +10,89 @@ interface FloatingPanelProps {
   setBasemap: (b: BasemapKind) => void;
 }
 
+const DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B";
+const DEFAULT_SYSTEM_PROMPT = "한국어로 짧고 명확하게 답해.";
+
 export default function FloatingPanel({ map, basemap, setBasemap }: FloatingPanelProps) {
+  const [activeTab, setActiveTab] = useState<TabName>("chat");
+  const [collapsed, setCollapsed] = useState(false);
+  const [model, setModel] = useState(DEFAULT_MODEL);
+  const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
+  const [disableThinking, setDisableThinking] = useState(true);
+  const [lastChunk, setLastChunk] = useState<unknown>(null);
+  const [toolHistory, setToolHistory] = useState<{ name: string; ts: number }[]>([]);
+
+  function handleToolResult(toolName: string, _resultText: string) {
+    setToolHistory((cur) => [...cur, { name: toolName, ts: Date.now() }]);
+  }
+
+  if (collapsed) {
+    return (
+      <div className="floating-panel collapsed">
+        <button className="panel-toggle" onClick={() => setCollapsed(false)} aria-label="패널 열기">
+          ›
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div
-      style={{
-        position: "absolute",
-        top: 14,
-        right: 14,
-        width: 380,
-        maxHeight: "calc(100vh - 28px)",
-        background: "rgba(255, 255, 255, 0.95)",
-        backdropFilter: "blur(10px)",
-        borderRadius: 14,
-        border: "1px solid rgba(0, 0, 0, 0.08)",
-        boxShadow: "0 12px 40px rgba(0, 0, 0, 0.08)",
-        zIndex: 10,
-        padding: 16,
-        fontSize: 13,
-        color: "#1c1917",
-      }}
-    >
-      <p style={{ margin: 0, fontSize: 11, letterSpacing: "0.06em", color: "#7c3aed", fontWeight: 600 }}>
-        URBAN-CHAT
-      </p>
-      <p style={{ marginTop: 8 }}>지도 + panel 골격 OK. 다음 task에서 탭(대화/설정/디버그) 구현 예정.</p>
-      <p style={{ marginTop: 8, fontSize: 11, color: "#a8a29e" }}>
-        map ready: {map ? "✓" : "..."} · basemap: {basemap}
-      </p>
+    <div className="floating-panel">
+      <div className="panel-tabs">
+        <button
+          className={`panel-tab ${activeTab === "chat" ? "active" : ""}`}
+          onClick={() => setActiveTab("chat")}
+        >
+          대화
+        </button>
+        <button
+          className={`panel-tab ${activeTab === "settings" ? "active" : ""}`}
+          onClick={() => setActiveTab("settings")}
+        >
+          설정
+        </button>
+        <button
+          className={`panel-tab ${activeTab === "debug" ? "active" : ""}`}
+          onClick={() => setActiveTab("debug")}
+        >
+          디버그
+        </button>
+        <button className="panel-toggle" onClick={() => setCollapsed(true)} aria-label="패널 접기">
+          ‹
+        </button>
+      </div>
+
+      <div className="panel-body">
+        {activeTab === "chat" && (
+          <ChatTab
+            model={model}
+            systemPrompt={systemPrompt}
+            disableThinking={disableThinking}
+            onLastChunk={setLastChunk}
+            onToolResult={handleToolResult}
+          />
+        )}
+        {activeTab === "settings" && (
+          <div className="settings-tab">
+            <p style={{ color: "#7c3aed", fontSize: 11, letterSpacing: "0.06em", margin: 0 }}>
+              SETTINGS — T6에서 본 구현
+            </p>
+            <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
+              현재: model={model}, basemap={basemap}, thinking={disableThinking ? "off" : "on"}
+            </p>
+          </div>
+        )}
+        {activeTab === "debug" && (
+          <div className="debug-tab">
+            <p style={{ color: "#7c3aed", fontSize: 11, letterSpacing: "0.06em", margin: 0 }}>
+              DEBUG — T6에서 본 구현
+            </p>
+            <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
+              tool calls: {toolHistory.length} · last chunk: {lastChunk ? "있음" : "없음"}
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
