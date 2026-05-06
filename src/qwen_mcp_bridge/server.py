@@ -63,12 +63,16 @@ async def chat_completions(request: Request) -> Any:
     if not isinstance(user_messages, list) or not user_messages:
         raise HTTPException(status_code=400, detail="messages가 비어있습니다")
 
-    # system prompt를 우리 브릿지가 추가 (사용자 system 메시지가 있으면 그 앞에 둠)
-    bridge_system = {"role": "system", "content": build_system_prompt()}
+    # system prompt를 우리 브릿지가 추가. 클라이언트가 보낸 system 메시지가 있으면
+    # 두 개를 하나로 병합 — Qwen3.6 chat template는 system이 정확히 1개 (그것도 맨 앞)여야 함.
+    bridge_system_content = build_system_prompt()
     if user_messages and user_messages[0].get("role") == "system":
-        merged_messages = [bridge_system, *user_messages]
+        client_system_content = user_messages[0].get("content") or ""
+        rest = user_messages[1:]
+        combined = bridge_system_content + "\n\n" + client_system_content if client_system_content else bridge_system_content
+        merged_messages = [{"role": "system", "content": combined}, *rest]
     else:
-        merged_messages = [bridge_system, *user_messages]
+        merged_messages = [{"role": "system", "content": bridge_system_content}, *user_messages]
 
     try:
         result = await run_chat(
