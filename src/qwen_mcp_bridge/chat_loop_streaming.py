@@ -271,9 +271,23 @@ async def run_chat_streaming(
                     "content": tool_text,
                 })
 
-        # max iter
+        # max iter — friendly 한국어 content chunk를 OpenAI delta 형식으로 emit
+        friendly = (
+            f"도구를 {max_iterations}번 호출했지만 최종 답변을 만들지 못했습니다. "
+            f"질문을 더 구체적으로 다시 시도해 주세요 (예: 좁은 범위·필지·필터 명시)."
+        )
+        yield _sse({
+            "id": "bridge-maxiter",
+            "object": "chat.completion.chunk",
+            "model": model,
+            "choices": [{
+                "index": 0,
+                "delta": {"role": "assistant", "content": friendly},
+                "finish_reason": "stop",
+            }],
+        })
         yield _sse({
             "type": "status",
-            "message": f"max_iterations={max_iterations} 도달 — 최종 답변 없이 마감",
+            "message": f"max_iterations={max_iterations} 도달",
         })
         yield _sse("[DONE]")

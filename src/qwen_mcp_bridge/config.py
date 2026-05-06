@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     bind_host: str = "0.0.0.0"
     bind_port: int = 8090
 
-    max_tool_iterations: int = 8
+    max_tool_iterations: int = 12
     vllm_timeout: float = 120.0
     mcp_tool_timeout: float = 60.0
     mcp_tool_result_max_bytes: int = 16384
