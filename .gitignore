@@ -16,3 +16,8 @@ web/dist/
 web/*.tsbuildinfo
 web/vite.config.js
 web/vite.config.d.ts
+
+# env (런타임 secrets — VWorld key 등)
+.env.local
+web/.env.local
+web/.env
