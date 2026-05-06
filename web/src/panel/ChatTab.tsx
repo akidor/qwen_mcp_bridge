@@ -1,7 +1,8 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { getChartSpec, MiniChart } from "../charts/auto_chart";
+import { getChartSpec, MiniChart, ChartSpec } from "../charts/auto_chart";
+import ChartModal from "../charts/ChartModal";
 
 type ChatRole = "user" | "assistant" | "system";
 
@@ -30,6 +31,7 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
     { role: "assistant", content: "준비됨. 자연어로 질의하세요." },
   ]);
   const [isSending, setIsSending] = useState(false);
+  const [modalSpec, setModalSpec] = useState<ChartSpec | null>(null);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -190,7 +192,15 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
                   if (te.kind !== "end" || te.error || !te.resultText) return null;
                   const spec = getChartSpec(te.name, te.resultText);
                   if (!spec) return null;
-                  return <MiniChart key={`chart-${i}`} spec={spec} />;
+                  return (
+                    <div
+                      key={`chart-${i}`}
+                      onClick={() => setModalSpec(spec)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <MiniChart spec={spec} />
+                    </div>
+                  );
                 })}
               </div>
             ) : null}
@@ -232,6 +242,7 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
           </div>
         </div>
       </form>
+      <ChartModal spec={modalSpec} onClose={() => setModalSpec(null)} />
     </div>
   );
 }
