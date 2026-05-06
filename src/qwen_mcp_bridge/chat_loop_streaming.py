@@ -218,9 +218,26 @@ async def run_chat_streaming(
 
             finish = sentinel.get("_finish_reason")
             assistant_msg = sentinel["_assistant_msg_for_history"]
+            content_emitted = sentinel.get("_content") or ""
 
             if finish != "tool_calls":
-                # stop / length / 기타 — 종료
+                # 정상 종료 — 단, content가 비어있고 첫 iter도 아니면 (도구 호출만 있었음)
+                # Qwen이 사용자에게 최종 답변을 잊은 경우. 1회 더 iter 호출해 강제 답변.
+                if (
+                    not content_emitted.strip()
+                    and iteration > 0
+                ):
+                    # 도구 결과 history는 이미 work에 있음. user 메시지로 명시 요청.
+                    work.append(assistant_msg)
+                    work.append({
+                        "role": "user",
+                        "content": "위 도구 결과들을 한국어로 간결히 정리해 답변해주세요. 도구를 추가로 호출하지 마세요.",
+                    })
+                    yield _sse({
+                        "type": "status",
+                        "message": "최종 답변 자동 요청...",
+                    })
+                    continue
                 yield _sse("[DONE]")
                 return
 
