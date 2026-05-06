@@ -26,6 +26,7 @@ export default function App() {
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [input, setInput] = useState(DEFAULT_PROMPT);
+  const [disableThinking, setDisableThinking] = useState(true);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
@@ -98,12 +99,15 @@ export default function App() {
         .map((m) => ({ role: m.role, content: m.content }))
     );
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       model,
       messages: requestMessages,
       stream: true,
       temperature: 0.7
     };
+    if (disableThinking) {
+      payload.chat_template_kwargs = { enable_thinking: false };
+    }
 
     const startedAt = performance.now();
     abortRef.current = new AbortController();
@@ -293,6 +297,15 @@ export default function App() {
               rows={3}
             />
           </div>
+
+          <label className="checkbox-field">
+            <input
+              type="checkbox"
+              checked={disableThinking}
+              onChange={(event) => setDisableThinking(event.target.checked)}
+            />
+            <span>thinking 끄기 (빠른 응답)</span>
+          </label>
         </section>
 
         <section className="panel">
@@ -310,7 +323,7 @@ export default function App() {
               <p className="eyebrow">대화</p>
               <h2>도시 분석 · 자연어</h2>
             </div>
-            <span className="badge">streaming</span>
+            <span className="badge">streaming · {disableThinking ? "no-think" : "thinking"}</span>
           </div>
 
           <div className="message-list">

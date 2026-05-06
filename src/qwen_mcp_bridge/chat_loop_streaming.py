@@ -70,6 +70,7 @@ async def _stream_vllm_iter(
     model: str,
     messages: list[dict],
     tools: list[dict],
+    extra_body: dict | None = None,
 ) -> AsyncIterator[dict]:
     """vLLM에 stream=true로 호출하고 chunk dict들을 yield.
 
@@ -84,6 +85,13 @@ async def _stream_vllm_iter(
         "stream": True,
         "stream_options": {"include_usage": False},
     }
+    if extra_body:
+        # 클라이언트가 보낸 chat_template_kwargs 등 vLLM 전용 필드를 forward.
+        # 우리 메타 키(`messages`, `model`, `stream`, `tools`, `tool_choice`)는 덮어쓰지 않음.
+        for k, v in extra_body.items():
+            if k in {"messages", "model", "stream", "tools", "tool_choice"}:
+                continue
+            payload[k] = v
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -178,6 +186,7 @@ async def run_chat_streaming(
     model: str,
     max_iterations: int = 5,
     request_timeout: float = 180.0,
+    extra_body: dict | None = None,
 ) -> AsyncIterator[bytes]:
     """SSE byte chunks를 yield. FastAPI StreamingResponse로 forward."""
     work = list(messages)
@@ -188,6 +197,7 @@ async def run_chat_streaming(
             sentinel: dict | None = None
             async for item in _stream_vllm_iter(
                 client, vllm_base_url, vllm_api_key, model, work, tools,
+                extra_body=extra_body,
             ):
                 if "_chunk" in item:
                     chunk = item["_chunk"]

@@ -75,6 +75,12 @@ async def chat_completions(request: Request) -> Any:
     else:
         merged_messages = [{"role": "system", "content": bridge_system_content}, *user_messages]
 
+    # 클라이언트의 vLLM 전용 옵션 (chat_template_kwargs, temperature, max_tokens 등) forward
+    extra_body = {
+        k: v for k, v in body.items()
+        if k not in {"messages", "model", "stream", "tools", "tool_choice"}
+    }
+
     # stream=true면 SSE 스트리밍 응답
     if body.get("stream") is True:
         gen = run_chat_streaming(
@@ -85,6 +91,7 @@ async def chat_completions(request: Request) -> Any:
             model=body.get("model") or settings.vllm_model,
             max_iterations=settings.max_tool_iterations,
             request_timeout=settings.vllm_timeout,
+            extra_body=extra_body,
         )
         return StreamingResponse(
             gen,
