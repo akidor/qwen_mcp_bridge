@@ -255,13 +255,15 @@ async def run_chat_streaming(
                         logger.warning("dispatch 오류 (%s): %s", name, e)
                         err = True
 
+                # raw tool_text는 SSE(frontend)용, 모델로 가는 텍스트는 별도로 truncate.
+                raw_tool_text = tool_text
                 tool_text = truncate_tool_text(tool_text, max_tool_result_bytes)
                 duration_ms = int((time.monotonic() - t0) * 1000)
 
-                # T5: result_text도 SSE에 첨부 — frontend auto_layer가 GeoJSON 추출에 사용.
-                # 8KB cap (max-size guard와 별도, frontend 전송용 hard cap).
-                _RESULT_TEXT_SSE_CAP = 8192
-                tool_text_for_sse = tool_text
+                # T5: result_text는 frontend auto_layer가 GeoJSON 추출에 쓰므로 raw 전달.
+                # 128KB cap만 적용 (필지 집계·POI FeatureCollection도 통과). 모델로 가는 텍스트와 별개.
+                _RESULT_TEXT_SSE_CAP = 131072
+                tool_text_for_sse = raw_tool_text
                 if len(tool_text_for_sse.encode("utf-8")) > _RESULT_TEXT_SSE_CAP:
                     enc = tool_text_for_sse.encode("utf-8")[:_RESULT_TEXT_SSE_CAP]
                     while enc:
