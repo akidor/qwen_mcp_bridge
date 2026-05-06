@@ -5,6 +5,8 @@ import FloatingPanel from "./panel/FloatingPanel";
 import LayerPanel from "./panel/LayerPanel";
 import { fetchWmsTree } from "./wms/tree";
 import type { WmsTreeNode } from "./wms/types";
+import { createDraw, geomToLabel } from "./map/draw";
+import type { DrawnFeature } from "./panel/DrawnFeatures";
 
 interface ToolHistoryEntry {
   name: string;
@@ -31,6 +33,10 @@ export default function App() {
   const [wmsOpacity, setWmsOpacity] = useState<Record<string, number>>({});
   const [wmsReloadToken, setWmsReloadToken] = useState(0);
 
+  const [drawEnabled, setDrawEnabled] = useState(false);
+  const [drawnFeatures, setDrawnFeatures] = useState<DrawnFeature[]>([]);
+  const [drawInstance, setDrawInstance] = useState<any>(null);
+
   useEffect(() => {
     let cancelled = false;
     setWmsTreeLoading(true);
@@ -49,6 +55,71 @@ export default function App() {
       cancelled = true;
     };
   }, [wmsReloadToken]);
+
+  useEffect(() => {
+    if (!mapInstance) return;
+    if (drawEnabled && !drawInstance) {
+      const draw = createDraw();
+      mapInstance.addControl(draw as any, "top-left");
+      mapInstance.on("draw.create", onDrawCreateOrUpdate);
+      mapInstance.on("draw.update", onDrawCreateOrUpdate);
+      mapInstance.on("draw.delete", onDrawDelete);
+      setDrawInstance(draw);
+    } else if (!drawEnabled && drawInstance) {
+      mapInstance.off("draw.create", onDrawCreateOrUpdate);
+      mapInstance.off("draw.update", onDrawCreateOrUpdate);
+      mapInstance.off("draw.delete", onDrawDelete);
+      try {
+        mapInstance.removeControl(drawInstance);
+      } catch {
+        // ignore
+      }
+      setDrawInstance(null);
+      setDrawnFeatures([]);
+    }
+    function onDrawCreateOrUpdate(e: any) {
+      const features: any[] = e?.features ?? [];
+      setDrawnFeatures((cur) => {
+        const byId = new Map(cur.map((f) => [f.id, f]));
+        for (const f of features) {
+          const id = String(f.id);
+          const geom = f.geometry as GeoJSON.Geometry;
+          const type = geom.type;
+          if (type !== "Polygon" && type !== "LineString" && type !== "Point") continue;
+          byId.set(id, {
+            id,
+            geometry: geom,
+            geometryType: type,
+            label: geomToLabel(geom),
+            visible: true,
+            ts: Date.now(),
+          });
+        }
+        return Array.from(byId.values());
+      });
+    }
+    function onDrawDelete(e: any) {
+      const ids = new Set<string>((e?.features ?? []).map((f: any) => String(f.id)));
+      setDrawnFeatures((cur) => cur.filter((f) => !ids.has(f.id)));
+    }
+  }, [mapInstance, drawEnabled, drawInstance]);
+
+  function toggleDrawnFeatureVisible(id: string) {
+    setDrawnFeatures((cur) =>
+      cur.map((f) => (f.id === id ? { ...f, visible: !f.visible } : f))
+    );
+    if (drawInstance && typeof drawInstance.setFeatureProperty === "function") {
+      const f = drawnFeatures.find((x) => x.id === id);
+      if (f) drawInstance.setFeatureProperty(id, "visible", !f.visible);
+    }
+  }
+
+  function removeDrawnFeature(id: string) {
+    if (drawInstance && typeof drawInstance.delete === "function") {
+      drawInstance.delete(id);
+    }
+    setDrawnFeatures((cur) => cur.filter((f) => f.id !== id));
+  }
 
   return (
     <>
@@ -90,6 +161,11 @@ export default function App() {
         wmsOpacity={wmsOpacity}
         setWmsOpacity={setWmsOpacity}
         onReloadWmsTree={() => setWmsReloadToken((t) => t + 1)}
+        drawEnabled={drawEnabled}
+        setDrawEnabled={setDrawEnabled}
+        drawnFeatures={drawnFeatures}
+        toggleDrawnFeatureVisible={toggleDrawnFeatureVisible}
+        removeDrawnFeature={removeDrawnFeature}
       />
     </>
   );

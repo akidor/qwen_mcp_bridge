@@ -790,3 +790,11 @@ body {
   background: rgba(198, 40, 40, 0.06);
   border-radius: 4px;
 }
+.draw-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  cursor: pointer;
+}

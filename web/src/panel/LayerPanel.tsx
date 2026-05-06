@@ -11,6 +11,7 @@ import WmsTreeNodeView from "./WmsTreeNode";
 import type { WmsTreeNode } from "../wms/types";
 import { getChartSpec, ChartSpec } from "../charts/auto_chart";
 import ChartModal from "../charts/ChartModal";
+import DrawnFeatures, { type DrawnFeature } from "./DrawnFeatures";
 
 interface ToolHistoryEntry {
   name: string;
@@ -42,6 +43,11 @@ interface LayerPanelProps {
   wmsOpacity: Record<string, number>;
   setWmsOpacity: (next: Record<string, number>) => void;
   onReloadWmsTree: () => void;
+  drawEnabled: boolean;
+  setDrawEnabled: (v: boolean) => void;
+  drawnFeatures: DrawnFeature[];
+  toggleDrawnFeatureVisible: (id: string) => void;
+  removeDrawnFeature: (id: string) => void;
 }
 
 const DOMAIN_INFO: Record<string, { icon: string; label: string }> = {
@@ -347,6 +353,26 @@ export default function LayerPanel(props: LayerPanelProps) {
               ))}
             </ul>
           )}
+        </div>
+
+        {/* 사용자 그리기 (P13) */}
+        <div className="layer-section">
+          <div className="layer-section-title">
+            ✏️ 사용자 그리기
+            <label className="draw-toggle-label" style={{ marginLeft: 8 }}>
+              <input
+                type="checkbox"
+                checked={props.drawEnabled}
+                onChange={(e) => props.setDrawEnabled(e.target.checked)}
+              />
+              <span style={{ fontSize: 11 }}>활성</span>
+            </label>
+          </div>
+          <DrawnFeatures
+            drawnFeatures={props.drawnFeatures}
+            toggleVisible={props.toggleDrawnFeatureVisible}
+            remove={props.removeDrawnFeature}
+          />
         </div>
 
         <ChartModal spec={modalSpec} onClose={() => setModalSpec(null)} />
