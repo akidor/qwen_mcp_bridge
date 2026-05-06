@@ -28,7 +28,7 @@ interface FloatingPanelProps {
   setToolHistory: React.Dispatch<React.SetStateAction<ToolHistoryEntry[]>>;
   layerVisibility: Record<string, boolean>;
   setLayerVisibility: (next: Record<string, boolean>) => void;
-  drawnFeatures: { id: string; geometry: GeoJSON.Geometry; label: string }[];
+  drawnFeatures: { id: string; geometry: GeoJSON.Geometry; label: string; ts?: number }[];
 }
 
 const DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B";

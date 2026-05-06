@@ -23,7 +23,7 @@ interface ChatTabProps {
   disableThinking: boolean;
   onLastChunk?: (chunk: unknown) => void;
   onToolResult?: (toolName: string, resultText: string) => void;  // T5에서 사용
-  drawnFeatures?: { id: string; geometry: GeoJSON.Geometry; label: string }[];
+  drawnFeatures?: { id: string; geometry: GeoJSON.Geometry; label: string; ts?: number }[];
 }
 
 export default function ChatTab({ model, systemPrompt, disableThinking, onLastChunk, onToolResult, drawnFeatures = [] }: ChatTabProps) {
@@ -158,9 +158,18 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
 
   function handleAttachGeometry() {
     if (!drawnFeatures || drawnFeatures.length === 0) return;
-    const latest = drawnFeatures[drawnFeatures.length - 1];
+    // ts 최대값 = 가장 최근 그리거나 수정한 feature
+    const latest = [...drawnFeatures].sort((a: any, b: any) => (b.ts ?? 0) - (a.ts ?? 0))[0];
     const prefix = `[geometry: ${JSON.stringify(latest.geometry)}]\n`;
-    setInput((cur) => prefix + cur);
+    setInput((cur) => {
+      // 이미 [geometry: ...] prefix가 있으면 그 라인을 교체 (중복 방지)
+      if (cur.startsWith("[geometry:")) {
+        const newlineIdx = cur.indexOf("\n");
+        const rest = newlineIdx === -1 ? "" : cur.slice(newlineIdx + 1);
+        return prefix + rest;
+      }
+      return prefix + cur;
+    });
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
