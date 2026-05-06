@@ -17,6 +17,7 @@ SSE 이벤트 종류:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -300,6 +301,8 @@ async def run_chat_streaming(
                     "result_text": tool_text_for_sse,
                     "error": err,
                 })
+                # SSE flush 보장 — 다음 vLLM POST 진입 전 클라이언트에 layer 그릴 시간 확보
+                await asyncio.sleep(0)
 
                 work.append({
                     "role": "tool",
