@@ -360,3 +360,18 @@ export function toggleLayer(map: any, layerId: string, visible: boolean): void {
 export function fitToBbox(map: any, bbox: [number, number, number, number]): void {
   map.fitBounds(bbox, { padding: 60, duration: 600 });
 }
+
+/** Layer의 fill opacity 변경 (0~1). fill sub-layer 있는 경우만 적용. */
+export function setLayerOpacity(map: any, layerId: string, opacity: number): void {
+  const safe = Math.max(0, Math.min(1, opacity));
+  const fillLayer = `${layerId}-fill`;
+  if (map.getLayer(fillLayer)) {
+    try { map.setPaintProperty(fillLayer, "fill-opacity", safe); } catch {}
+  }
+}
+
+/** Layer가 fill sub-layer를 가지고 있는지 — opacity slider 표시 여부 결정용. */
+export function hasFillLayer(map: any, layerId: string): boolean {
+  if (!map) return false;
+  return !!map.getLayer(`${layerId}-fill`);
+}

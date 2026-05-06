@@ -699,3 +699,44 @@ body {
   background: var(--bg);
   color: var(--fg);
 }
+.tree-item {
+  flex-wrap: wrap;
+}
+.tree-item-slider {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 0 2px 26px;
+  font-size: 9px;
+  color: var(--muted);
+}
+.tree-item-slider input[type="range"] {
+  flex: 1;
+  height: 4px;
+  background: var(--code-bg);
+  appearance: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.tree-item-slider input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+.tree-item-slider input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+.tree-item-slider span {
+  width: 32px;
+  text-align: right;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}

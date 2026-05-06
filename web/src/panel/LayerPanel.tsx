@@ -5,7 +5,7 @@ import {
   setTerrainEnabled as applyTerrain,
   setBuildingsEnabled as applyBuildings,
 } from "../map/basemaps";
-import { toggleLayer, fitToBbox } from "../map/auto_layer";
+import { toggleLayer, fitToBbox, setLayerOpacity as applyLayerOpacity, hasFillLayer } from "../map/auto_layer";
 import { getChartSpec, ChartSpec } from "../charts/auto_chart";
 import ChartModal from "../charts/ChartModal";
 
@@ -81,6 +81,11 @@ export default function LayerPanel(props: LayerPanelProps) {
 
   function handleZoom(bbox: [number, number, number, number]) {
     if (props.map) fitToBbox(props.map, bbox);
+  }
+
+  function handleOpacity(layerId: string, opacity: number) {
+    props.setLayerOpacity({ ...props.layerOpacity, [layerId]: opacity });
+    if (props.map) applyLayerOpacity(props.map, layerId, opacity);
   }
 
   function handleChart(name: string, resultText: string) {
@@ -199,6 +204,19 @@ export default function LayerPanel(props: LayerPanelProps) {
                               <button onClick={() => handleZoom(h.bbox!)} title="줌">🎯</button>
                             ) : null}
                           </div>
+                          {hasFillLayer(props.map, h.layerId!) ? (
+                            <div className="tree-item-slider">
+                              <input
+                                type="range"
+                                min={0}
+                                max={100}
+                                value={Math.round((props.layerOpacity[h.layerId!] ?? 0.25) * 100)}
+                                onChange={(e) => handleOpacity(h.layerId!, Number(e.target.value) / 100)}
+                                title="투명도"
+                              />
+                              <span>{Math.round((props.layerOpacity[h.layerId!] ?? 0.25) * 100)}%</span>
+                            </div>
+                          ) : null}
                         </li>
                       );
                     })}
