@@ -31,6 +31,8 @@ export default function FloatingPanel({ map, basemap, setBasemap }: FloatingPane
     bbox?: [number, number, number, number];
   }[]>([]);
   const [layerVisibility, setLayerVisibility] = useState<Record<string, boolean>>({});
+  const [terrainEnabled, setTerrainEnabled] = useState(false);
+  const [buildingsEnabled, setBuildingsEnabled] = useState(false);
 
   function handleToolResult(toolName: string, resultText: string) {
     const ts = Date.now();
@@ -91,6 +93,7 @@ export default function FloatingPanel({ map, basemap, setBasemap }: FloatingPane
         )}
         {activeTab === "settings" && (
           <SettingsTab
+            map={map}
             model={model}
             setModel={setModel}
             systemPrompt={systemPrompt}
@@ -99,6 +102,10 @@ export default function FloatingPanel({ map, basemap, setBasemap }: FloatingPane
             setDisableThinking={setDisableThinking}
             basemap={basemap}
             setBasemap={setBasemap}
+            terrainEnabled={terrainEnabled}
+            setTerrainEnabled={setTerrainEnabled}
+            buildingsEnabled={buildingsEnabled}
+            setBuildingsEnabled={setBuildingsEnabled}
           />
         )}
         {activeTab === "debug" && (

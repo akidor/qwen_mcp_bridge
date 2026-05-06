@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
-import { BasemapKind, BASEMAP_ORDER } from "../map/basemaps";
+import {
+  BasemapKind,
+  BASEMAP_ORDER,
+  setTerrainEnabled as applyTerrain,
+  setBuildingsEnabled as applyBuildings,
+} from "../map/basemaps";
 
 interface SettingsTabProps {
+  map: any;
   model: string;
   setModel: (m: string) => void;
   systemPrompt: string;
@@ -10,6 +16,10 @@ interface SettingsTabProps {
   setDisableThinking: (v: boolean) => void;
   basemap: BasemapKind;
   setBasemap: (b: BasemapKind) => void;
+  terrainEnabled: boolean;
+  setTerrainEnabled: (v: boolean) => void;
+  buildingsEnabled: boolean;
+  setBuildingsEnabled: (v: boolean) => void;
 }
 
 export default function SettingsTab(props: SettingsTabProps) {
@@ -33,6 +43,18 @@ export default function SettingsTab(props: SettingsTabProps) {
     } finally {
       setLoadingModels(false);
     }
+  }
+
+  function handleTerrainToggle() {
+    const next = !props.terrainEnabled;
+    props.setTerrainEnabled(next);
+    if (props.map) applyTerrain(props.map, next);
+  }
+
+  function handleBuildingsToggle() {
+    const next = !props.buildingsEnabled;
+    props.setBuildingsEnabled(next);
+    if (props.map) applyBuildings(props.map, next);
   }
 
   return (
@@ -87,6 +109,26 @@ export default function SettingsTab(props: SettingsTabProps) {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="field">
+        <label>3D</label>
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={props.terrainEnabled}
+            onChange={handleTerrainToggle}
+          />
+          <span>3D 지형 (terrain + hillshade)</span>
+        </label>
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={props.buildingsEnabled}
+            onChange={handleBuildingsToggle}
+          />
+          <span>3D 건물 (fill-extrusion)</span>
+        </label>
       </div>
     </div>
   );

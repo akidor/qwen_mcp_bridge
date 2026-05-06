@@ -1,7 +1,14 @@
 import { useEffect, useRef } from "react";
 import maplibregl, { Map as MapLibreMap } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { makeStyle, setActiveBasemap, BasemapKind } from "./basemaps";
+import {
+  makeStyle,
+  setActiveBasemap,
+  setupSky,
+  setupHillshade,
+  setupBuildings,
+  BasemapKind,
+} from "./basemaps";
 
 interface MapViewProps {
   initialCenter?: [number, number];   // [lng, lat]; default 강남역
@@ -28,9 +35,25 @@ export default function MapView({
       center: initialCenter,
       zoom: initialZoom,
       attributionControl: false,
+      maxPitch: 85,        // 3D 지형/건물 보기용
+      pitch: 0,
     });
     mapRef.current = map;
-    map.on("load", () => onReady?.(map));
+
+    // 우상단 Navigation 컨트롤 (zoom + 나침반 + pitch 시각화)
+    map.addControl(
+      new maplibregl.NavigationControl({ showCompass: true, showZoom: true, visualizePitch: true }),
+      "top-left"
+    );
+
+    map.on("load", () => {
+      // 폴리곤 제너레이터 패턴 — 폴리곤과 동일 순서
+      setupSky(map);
+      setupHillshade(map);
+      setupBuildings(map);
+      onReady?.(map);
+    });
+
     return () => {
       map.remove();
       mapRef.current = null;
