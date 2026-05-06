@@ -1,4 +1,7 @@
+import { useState } from "react";
 import { toggleLayer, fitToBbox } from "../map/auto_layer";
+import { getChartSpec, ChartSpec } from "../charts/auto_chart";
+import ChartModal from "../charts/ChartModal";
 
 interface ToolHistoryEntry {
   name: string;
@@ -6,6 +9,7 @@ interface ToolHistoryEntry {
   layerId: string | null;
   message: string;
   bbox?: [number, number, number, number];
+  resultText?: string;
 }
 
 interface DebugTabProps {
@@ -17,6 +21,8 @@ interface DebugTabProps {
 }
 
 export default function DebugTab({ map, lastChunk, toolHistory, layerVisibility, setLayerVisibility }: DebugTabProps) {
+  const [modalSpec, setModalSpec] = useState<ChartSpec | null>(null);
+
   function handleToggle(layerId: string) {
     const newVisible = !(layerVisibility[layerId] ?? true);
     setLayerVisibility({ ...layerVisibility, [layerId]: newVisible });
@@ -27,6 +33,11 @@ export default function DebugTab({ map, lastChunk, toolHistory, layerVisibility,
     if (map) fitToBbox(map, bbox);
   }
 
+  function handleChart(name: string, resultText: string) {
+    const spec = getChartSpec(name, resultText);
+    if (spec) setModalSpec(spec);
+  }
+
   return (
     <div className="debug-tab">
       <div className="field">
@@ -35,22 +46,30 @@ export default function DebugTab({ map, lastChunk, toolHistory, layerVisibility,
           {toolHistory.length === 0 ? (
             <li className="empty">아직 도구 호출 없음</li>
           ) : (
-            toolHistory.map((h, i) => (
-              <li key={`${h.ts}-${i}`} className="layer-item">
-                <span className="layer-name">{h.name}</span>
-                <span className="layer-msg">{h.message}</span>
-                {h.layerId ? (
-                  <div className="layer-actions">
-                    <button onClick={() => handleToggle(h.layerId!)}>
-                      {layerVisibility[h.layerId] ?? true ? "숨김" : "보임"}
-                    </button>
-                    {h.bbox ? (
-                      <button onClick={() => handleZoom(h.bbox!)}>줌</button>
-                    ) : null}
-                  </div>
-                ) : null}
-              </li>
-            ))
+            toolHistory.map((h, i) => {
+              const chartable = h.resultText ? !!getChartSpec(h.name, h.resultText) : false;
+              return (
+                <li key={`${h.ts}-${i}`} className="layer-item">
+                  <span className="layer-name">{h.name}</span>
+                  <span className="layer-msg">{h.message}</span>
+                  {(h.layerId || chartable) ? (
+                    <div className="layer-actions">
+                      {h.layerId ? (
+                        <button onClick={() => handleToggle(h.layerId!)}>
+                          {layerVisibility[h.layerId] ?? true ? "숨김" : "보임"}
+                        </button>
+                      ) : null}
+                      {h.bbox ? (
+                        <button onClick={() => handleZoom(h.bbox!)}>줌</button>
+                      ) : null}
+                      {chartable && h.resultText ? (
+                        <button onClick={() => handleChart(h.name, h.resultText!)}>차트</button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })
           )}
         </ul>
       </div>
@@ -61,6 +80,8 @@ export default function DebugTab({ map, lastChunk, toolHistory, layerVisibility,
           {lastChunk ? JSON.stringify(lastChunk, null, 2) : "응답 없음"}
         </pre>
       </div>
+
+      <ChartModal spec={modalSpec} onClose={() => setModalSpec(null)} />
     </div>
   );
 }

@@ -29,6 +29,7 @@ export default function FloatingPanel({ map, basemap, setBasemap }: FloatingPane
     layerId: string | null;
     message: string;
     bbox?: [number, number, number, number];
+    resultText?: string;
   }[]>([]);
   const [layerVisibility, setLayerVisibility] = useState<Record<string, boolean>>({});
   const [terrainEnabled, setTerrainEnabled] = useState(false);
@@ -37,11 +38,11 @@ export default function FloatingPanel({ map, basemap, setBasemap }: FloatingPane
   function handleToolResult(toolName: string, resultText: string) {
     const ts = Date.now();
     if (!map) {
-      setToolHistory((cur) => [...cur, { name: toolName, ts, layerId: null, message: "map 미준비" }]);
+      setToolHistory((cur) => [...cur, { name: toolName, ts, layerId: null, message: "map 미준비", resultText }]);
       return;
     }
     const r = applyToolResult(map, toolName, resultText);
-    setToolHistory((cur) => [...cur, { name: toolName, ts, layerId: r.layerId, message: r.message, bbox: r.bbox }]);
+    setToolHistory((cur) => [...cur, { name: toolName, ts, layerId: r.layerId, message: r.message, bbox: r.bbox, resultText }]);
     if (r.bbox) fitToBbox(map, r.bbox);
   }
 
