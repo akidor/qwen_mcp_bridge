@@ -28,6 +28,7 @@ interface FloatingPanelProps {
   setToolHistory: React.Dispatch<React.SetStateAction<ToolHistoryEntry[]>>;
   layerVisibility: Record<string, boolean>;
   setLayerVisibility: (next: Record<string, boolean>) => void;
+  drawnFeatures: { id: string; geometry: GeoJSON.Geometry; label: string }[];
 }
 
 const DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B";
@@ -39,6 +40,7 @@ export default function FloatingPanel({
   buildingsEnabled, setBuildingsEnabled,
   toolHistory, setToolHistory,
   layerVisibility, setLayerVisibility,
+  drawnFeatures,
 }: FloatingPanelProps) {
   const [activeTab, setActiveTab] = useState<TabName>("chat");
   const [collapsed, setCollapsed] = useState(false);
@@ -102,6 +104,7 @@ export default function FloatingPanel({
             disableThinking={disableThinking}
             onLastChunk={setLastChunk}
             onToolResult={handleToolResult}
+            drawnFeatures={drawnFeatures}
           />
         </div>
         <div className={`tab-pane ${activeTab === "settings" ? "" : "hidden"}`}>

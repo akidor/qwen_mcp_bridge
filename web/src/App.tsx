@@ -149,6 +149,7 @@ export default function App() {
         setToolHistory={setToolHistory}
         layerVisibility={layerVisibility}
         setLayerVisibility={setLayerVisibility}
+        drawnFeatures={drawnFeatures}
       />
       <LayerPanel
         map={mapInstance}

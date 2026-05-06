@@ -23,9 +23,10 @@ interface ChatTabProps {
   disableThinking: boolean;
   onLastChunk?: (chunk: unknown) => void;
   onToolResult?: (toolName: string, resultText: string) => void;  // T5에서 사용
+  drawnFeatures?: { id: string; geometry: GeoJSON.Geometry; label: string }[];
 }
 
-export default function ChatTab({ model, systemPrompt, disableThinking, onLastChunk, onToolResult }: ChatTabProps) {
+export default function ChatTab({ model, systemPrompt, disableThinking, onLastChunk, onToolResult, drawnFeatures = [] }: ChatTabProps) {
   const [input, setInput] = useState("역삼동 738번지의 PNU와 면적 알려줘");
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: "assistant", content: "준비됨. 자연어로 질의하세요." },
@@ -155,6 +156,13 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
     abortRef.current?.abort();
   }
 
+  function handleAttachGeometry() {
+    if (!drawnFeatures || drawnFeatures.length === 0) return;
+    const latest = drawnFeatures[drawnFeatures.length - 1];
+    const prefix = `[geometry: ${JSON.stringify(latest.geometry)}]\n`;
+    setInput((cur) => prefix + cur);
+  }
+
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.nativeEvent.isComposing) return;
     if (event.key === "Enter" && !event.shiftKey) {
@@ -230,6 +238,19 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
         />
         <div className="composer-row">
           <span className="composer-hint">Enter 전송 · Shift+Enter 줄바꿈</span>
+          <button
+            type="button"
+            className="attach-button"
+            onClick={handleAttachGeometry}
+            disabled={!drawnFeatures || drawnFeatures.length === 0}
+            title={
+              drawnFeatures && drawnFeatures.length > 0
+                ? `가장 최근 그린 ${drawnFeatures[drawnFeatures.length - 1].label}을 채팅에 첨부`
+                : "그린 영역 없음"
+            }
+          >
+            📎 영역 첨부 ({drawnFeatures?.length ?? 0})
+          </button>
           <div style={{ display: "flex", gap: 8 }}>
             {isSending ? (
               <button type="button" className="secondary-button" onClick={handleAbort}>
