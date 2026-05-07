@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import MapView from "./map/MapView";
+import KakaoBaseMap from "./map/KakaoBaseMap";
 import { BasemapKind } from "./map/basemaps";
 import FloatingPanel from "./panel/FloatingPanel";
 import LayerPanel from "./panel/LayerPanel";
@@ -133,6 +134,7 @@ export default function App() {
 
   return (
     <>
+      <KakaoBaseMap map={mapInstance} visible={basemap === "kakao"} />
       <MapView
         basemap={basemap}
         onReady={(map) => setMapInstance(map)}

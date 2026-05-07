@@ -4,9 +4,13 @@ export const VWORLD_API_KEY: string = import.meta.env.VITE_VWORLD_API_KEY ?? "";
 export const MARTIN_BASE: string =
   import.meta.env.VITE_MARTIN_URL ?? "http://175.208.134.144:9517";
 
-export type BasemapKind = "white" | "base" | "satellite" | "midnight" | "hybrid";
+export type BasemapKind = "white" | "base" | "satellite" | "midnight" | "hybrid" | "kakao";
 
-export const BASE_TILES: Record<BasemapKind, string> = {
+/** VWorld WMTS 5종 — `BASEMAP_ORDER`로 iterate. `kakao`는 별도 stack overlay이므로 미포함. */
+export const VWORLD_BASEMAPS = ["white", "base", "satellite", "midnight", "hybrid"] as const;
+export type VworldBasemapKind = typeof VWORLD_BASEMAPS[number];
+
+export const BASE_TILES: Record<VworldBasemapKind, string> = {
   satellite: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_API_KEY}/Satellite/{z}/{y}/{x}.jpeg`,
   base: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_API_KEY}/Base/{z}/{y}/{x}.png`,
   white: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_API_KEY}/white/{z}/{y}/{x}.png`,
@@ -14,16 +18,16 @@ export const BASE_TILES: Record<BasemapKind, string> = {
   hybrid: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_API_KEY}/Hybrid/{z}/{y}/{x}.png`,
 };
 
-export const BASEMAP_ORDER: BasemapKind[] = ["white", "base", "satellite", "midnight", "hybrid"];
+export const BASEMAP_ORDER: BasemapKind[] = ["white", "base", "satellite", "midnight", "hybrid", "kakao"];
 
-/** MapLibre StyleSpecification — basemap 5종 + raster-dem(terrain). */
+/** MapLibre StyleSpecification — VWorld basemap 5종 + raster-dem(terrain). kakao는 별도 stack. */
 export function makeStyle(initialBasemap: BasemapKind = "white"): any {
   return {
     version: 8,
     glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
     sources: {
       ...Object.fromEntries(
-        BASEMAP_ORDER.map((k) => [
+        VWORLD_BASEMAPS.map((k) => [
           `basemap-${k}`,
           { type: "raster", tiles: [BASE_TILES[k]], tileSize: 256, maxzoom: 19 } as const,
         ])
@@ -36,7 +40,7 @@ export function makeStyle(initialBasemap: BasemapKind = "white"): any {
         encoding: "mapbox",
       },
     },
-    layers: BASEMAP_ORDER.map((k) => ({
+    layers: VWORLD_BASEMAPS.map((k) => ({
       id: `basemap-${k}`,
       type: "raster",
       source: `basemap-${k}`,
@@ -45,9 +49,9 @@ export function makeStyle(initialBasemap: BasemapKind = "white"): any {
   };
 }
 
-/** 현재 활성 basemap을 visibility로 토글. */
+/** 현재 활성 basemap을 visibility로 토글. kakao는 모든 vworld layer hide만 처리. */
 export function setActiveBasemap(map: any, kind: BasemapKind): void {
-  for (const k of BASEMAP_ORDER) {
+  for (const k of VWORLD_BASEMAPS) {
     map.setLayoutProperty(`basemap-${k}`, "visibility", k === kind ? "visible" : "none");
   }
 }
