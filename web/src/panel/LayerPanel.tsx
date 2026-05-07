@@ -399,6 +399,5 @@ function basemapLabel(k: BasemapKind): string {
     case "satellite": return "위성";
     case "midnight": return "야간";
     case "hybrid": return "하이브리드";
-    case "kakao": return "카카오";
   }
 }

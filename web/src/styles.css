@@ -830,24 +830,3 @@ body {
   opacity: 0.4;
   cursor: not-allowed;
 }
-
-/* === Kakao basemap stack overlay (P14) === */
-.kakao-basemap-layer {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-}
-.kakao-basemap-error {
-  position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 5;
-  background: rgba(198, 40, 40, 0.92);
-  color: #fff;
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  pointer-events: none;
-}
