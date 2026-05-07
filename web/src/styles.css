@@ -973,3 +973,75 @@ body {
   flex-direction: column;
   gap: 12px;
 }
+
+/* === P16 Mass 3D Modal === */
+.mass-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(0, 0, 0, 0.6);
+}
+.mass-modal {
+  position: fixed;
+  inset: 32px;
+  z-index: 71;
+  background: var(--bg);
+  border-radius: 12px;
+  box-shadow: var(--panel-shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.mass-modal-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+}
+.mass-modal-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.mass-chip {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg-muted);
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+.mass-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.mass-chip.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.mass-modal-close {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  padding: 0 8px;
+}
+.mass-modal-close:hover { color: var(--fg); }
+.mass-modal-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.mass-modal-body canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
