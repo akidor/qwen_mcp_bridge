@@ -8,7 +8,7 @@ _DOMAIN_GUIDE = """\
 - locate__: 주소·좌표·필지·시설명 (search_address, search_facility, get_parcel, parcel_at_point, ...)
 - inspect__: 속성·규제 (zoning, road_width, land_use, ...)
 - reach__: 등시선·도달 (isochrone_walk/bike/transit/car, poi_in_radius/isochrone, ...)
-- analyze__: 통계·분포 (land_composition, population_summary, parcel_aggregation, ...)
+- analyze__: 통계·분포·필지검색 (land_composition, population_summary, parcel_aggregation, find_parcels, ...)
 - simulate__: 그림자·토공 (shadow_analysis, earthwork_volume, planning_precheck)
 - estimate__: 비용·세대 (cost_detail, parking_estimate, unit_estimate, ...)
 - design__: 매스·시나리오 (generate_volume, scenario_*, unit_layout, ...)
@@ -41,6 +41,11 @@ def build_system_prompt(now: datetime | None = None) -> str:
     - 시설명·관공서·건물명·상호명("강남구청", "서울대학교 정문", "스타벅스 역삼점") → `locate__search_facility` (반환 좌표).
     - search_address가 빈 결과 + hint("시설/건물명은 미지원")를 반환하면 즉시 search_facility로 재시도.
     - 시설명 + 주변 분석("강남구청 주변 카페")은 search_facility → 좌표 → reach__isochrone_walk → reach__poi_in_isochrone 순.
+13. **좌표 + 반경으로 필지 찾기**:
+    - 시설명·좌표에서 시작해 주변 필지를 찾을 땐 `analyze__find_parcels(lng, lat, radius_m, area_min_m2?, area_max_m2?)` 한 번에 호출. `make_buffer` + `parcels_in_boundary` 분리 호출 X.
+    - 평수 → m² 변환은 사용자가 안 했어도 알아서 (1평 ≈ 3.31㎡, 예: 100평 ≈ 330㎡). 면적 ±15% 정도 여유 두고 area_min_m2/area_max_m2 설정.
+    - 건물 유무(빈땅) 필터는 현재 미지원 — 사용자에게 "P16 신설 예정"으로 안내.
+    - 응답 필지 수가 0이면 hint 따라 radius_m 또는 면적 범위 확장 제안.
 
 {_DOMAIN_GUIDE}
 
