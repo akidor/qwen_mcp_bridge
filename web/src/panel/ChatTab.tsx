@@ -24,9 +24,10 @@ interface ChatTabProps {
   onLastChunk?: (chunk: unknown) => void;
   onToolResult?: (toolName: string, resultText: string) => void;  // T5에서 사용
   drawnFeatures?: { id: string; geometry: GeoJSON.Geometry; label: string; ts?: number }[];
+  mode?: "desktop" | "mobile";
 }
 
-export default function ChatTab({ model, systemPrompt, disableThinking, onLastChunk, onToolResult, drawnFeatures = [] }: ChatTabProps) {
+export default function ChatTab({ model, systemPrompt, disableThinking, onLastChunk, onToolResult, drawnFeatures = [], mode = "desktop" }: ChatTabProps) {
   const [input, setInput] = useState("역삼동 738번지의 PNU와 면적 알려줘");
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: "assistant", content: "준비됨. 자연어로 질의하세요." },
@@ -180,9 +181,48 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
     }
   }
 
+  const composerForm = (
+    <form ref={composerFormRef} className={`composer ${mode === "mobile" ? "mobile-composer" : ""}`} onSubmit={handleSubmit}>
+      <textarea
+        value={input}
+        onChange={(event) => setInput(event.target.value)}
+        onKeyDown={handleComposerKeyDown}
+        placeholder="자연어로 질의..."
+        rows={3}
+      />
+      <div className="composer-row">
+        <span className="composer-hint">Enter 전송 · Shift+Enter 줄바꿈</span>
+        <button
+          type="button"
+          className="attach-button"
+          onClick={handleAttachGeometry}
+          disabled={!drawnFeatures || drawnFeatures.length === 0}
+          title={
+            drawnFeatures && drawnFeatures.length > 0
+              ? `가장 최근 그린 ${drawnFeatures[drawnFeatures.length - 1].label}을 채팅에 첨부`
+              : "그린 영역 없음"
+          }
+        >
+          📎 영역 첨부 ({drawnFeatures?.length ?? 0})
+        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          {isSending ? (
+            <button type="button" className="secondary-button" onClick={handleAbort}>
+              중단
+            </button>
+          ) : null}
+          <button type="submit" className="primary-button" disabled={isSending}>
+            {isSending ? "..." : "전송"}
+          </button>
+        </div>
+      </div>
+    </form>
+  );
+
   return (
-    <div className="chat-tab">
-      <div className="message-list">
+    <div className={`chat-tab ${mode === "mobile" ? "mobile" : ""}`}>
+      {mode === "mobile" && composerForm}
+      <div className={`message-list ${mode === "mobile" ? "mobile" : ""}`}>
         {messages.map((message, index) => (
           <article key={`${message.role}-${index}`} className={`message ${message.role}`}>
             <p className="message-role">{message.role}</p>
@@ -236,42 +276,7 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
         ))}
         <div ref={messagesEndRef} />
       </div>
-
-      <form ref={composerFormRef} className="composer" onSubmit={handleSubmit}>
-        <textarea
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={handleComposerKeyDown}
-          placeholder="자연어로 질의..."
-          rows={3}
-        />
-        <div className="composer-row">
-          <span className="composer-hint">Enter 전송 · Shift+Enter 줄바꿈</span>
-          <button
-            type="button"
-            className="attach-button"
-            onClick={handleAttachGeometry}
-            disabled={!drawnFeatures || drawnFeatures.length === 0}
-            title={
-              drawnFeatures && drawnFeatures.length > 0
-                ? `가장 최근 그린 ${drawnFeatures[drawnFeatures.length - 1].label}을 채팅에 첨부`
-                : "그린 영역 없음"
-            }
-          >
-            📎 영역 첨부 ({drawnFeatures?.length ?? 0})
-          </button>
-          <div style={{ display: "flex", gap: 8 }}>
-            {isSending ? (
-              <button type="button" className="secondary-button" onClick={handleAbort}>
-                중단
-              </button>
-            ) : null}
-            <button type="submit" className="primary-button" disabled={isSending}>
-              {isSending ? "..." : "전송"}
-            </button>
-          </div>
-        </div>
-      </form>
+      {mode !== "mobile" && composerForm}
       <ChartModal spec={modalSpec} onClose={() => setModalSpec(null)} />
     </div>
   );

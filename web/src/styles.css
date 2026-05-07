@@ -888,3 +888,28 @@ body {
 .mobile-map-bar-button:active {
   transform: scale(0.95);
 }
+
+.chat-tab.mobile {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.chat-tab.mobile .composer.mobile-composer {
+  flex: 0 0 auto;
+  border-top: none;
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px;
+}
+.chat-tab.mobile .message-list.mobile {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column-reverse;
+  padding: 12px;
+  gap: 12px;
+}
+.chat-tab.mobile .message-list.mobile .message {
+  flex: 0 0 auto;
+}
