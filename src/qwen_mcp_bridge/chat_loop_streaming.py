@@ -279,7 +279,7 @@ async def run_chat_streaming(
                 duration_ms = int((time.monotonic() - t0) * 1000)
 
                 # T5: result_text는 frontend auto_layer가 GeoJSON 추출에 쓰므로 raw 전달.
-                # 128KB cap만 적용 (필지 집계·POI FeatureCollection도 통과). 모델로 가는 텍스트와 별개.
+                # 256KB cap만 적용 (필지 집계·POI FeatureCollection·scene_data도 통과). 모델로 가는 텍스트와 별개.
                 _RESULT_TEXT_SSE_CAP = 262144  # 256KB — design.generate_scene scene_data inline용
                 tool_text_for_sse = raw_tool_text
                 if len(tool_text_for_sse.encode("utf-8")) > _RESULT_TEXT_SSE_CAP:
