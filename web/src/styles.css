@@ -760,10 +760,23 @@ body {
   list-style: none;
   padding: 2px 0;
   user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tree-folder-summary::-webkit-details-marker {
+  display: none;
 }
 .tree-folder.disabled .tree-folder-summary {
   color: var(--fg-muted);
   cursor: not-allowed;
+}
+.tree-folder-checkbox {
+  margin: 0;
+}
+.tree-folder-icon,
+.tree-folder-label {
+  vertical-align: middle;
 }
 .tree-opacity-slider {
   width: 60px;

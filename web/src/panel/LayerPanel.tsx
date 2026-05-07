@@ -114,6 +114,16 @@ export default function LayerPanel(props: LayerPanelProps) {
     props.setSelectedWmsKeys(next);
   }
 
+  function bulkSetWmsSelected(keys: string[], select: boolean) {
+    const next = new Set(props.selectedWmsKeys);
+    if (select) {
+      for (const k of keys) next.add(k);
+    } else {
+      for (const k of keys) next.delete(k);
+    }
+    props.setSelectedWmsKeys(next);
+  }
+
   function setOneWmsOpacity(key: string, op: number) {
     props.setWmsOpacity({ ...props.wmsOpacity, [key]: op });
   }
@@ -347,6 +357,7 @@ export default function LayerPanel(props: LayerPanelProps) {
                   node={root}
                   selectedKeys={props.selectedWmsKeys}
                   toggleSelect={(key) => toggleWmsSelect(key)}
+                  bulkSetSelected={bulkSetWmsSelected}
                   opacity={props.wmsOpacity}
                   setOpacity={setOneWmsOpacity}
                 />
