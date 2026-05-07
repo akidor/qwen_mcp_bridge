@@ -17,6 +17,7 @@ type ToolEvent =
       resultSize: number;
       error: boolean;
       resultText?: string;
+      sceneData?: SceneData;
       sceneCandidates?: Array<{
         id: string;
         typology: string;
@@ -152,6 +153,7 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
               resultSize: data.result_size ?? 0,
               error: !!data.error,
               resultText,
+              sceneData: scene?.sceneData,
               sceneCandidates,
             });
             onToolResult?.(data.name, resultText);
@@ -301,8 +303,9 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
                             <button
                               className="mass-thumbnail-btn"
                               onClick={() => {
-                                const scene = parseSceneData(ev.name, ev.resultText ?? "");
-                                if (scene) setMassModal({ sceneData: scene.sceneData, defaultCandidateId: c.id });
+                                if (ev.sceneData) {
+                                  setMassModal({ sceneData: ev.sceneData, defaultCandidateId: c.id });
+                                }
                               }}
                               title="3D 풀스크린 뷰어"
                             >
