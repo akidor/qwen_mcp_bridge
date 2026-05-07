@@ -23,7 +23,7 @@ const SLOPE_COLOR = "#ff6666";
 const SLOPE_LINE_COLOR = "#ff4444";
 const ROAD_COLOR = "#44aa44";
 
-interface LayerVisibility {
+export interface LayerVisibility {
   site: LayerState;
   buildable: LayerState;
   neighbors: LayerState;

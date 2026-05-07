@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import SceneViewer from "./scene-viewer";
-import type { SceneData, LayerState } from "./scene-types";
+import { SceneViewer, type LayerVisibility } from "./scene-viewer";
+import type { SceneData } from "./scene-types";
 
 interface Props {
   open: boolean;
@@ -9,7 +9,7 @@ interface Props {
   defaultCandidateId?: string;
 }
 
-const DEFAULT_LAYERS: Record<string, LayerState> = {
+const DEFAULT_LAYERS: LayerVisibility = {
   site: { visible: true, opacity: 1 },
   buildable: { visible: true, opacity: 1 },
   neighbors: { visible: true, opacity: 1 },
@@ -74,7 +74,7 @@ export default function MassModal({ open, onClose, sceneData, defaultCandidateId
           <SceneViewer
             sceneData={sceneData}
             selectedCandidateId={selectedCandidateId}
-            layers={DEFAULT_LAYERS as any}
+            layers={DEFAULT_LAYERS}
           />
         </div>
       </div>
