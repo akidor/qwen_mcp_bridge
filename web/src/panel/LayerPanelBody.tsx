@@ -5,8 +5,16 @@ import {
   setTerrainEnabled as applyTerrain,
   setBuildingsEnabled as applyBuildings,
 } from "../map/basemaps";
-import { toggleLayer, fitToBbox, setLayerOpacity as applyLayerOpacity, hasFillLayer } from "../map/auto_layer";
-import { addWmsLayer, removeWmsLayer, setWmsOpacity as applyWmsOpacity, hasWmsLayer } from "../map/auto_layer";
+import {
+  toggleLayer,
+  fitToBbox,
+  setLayerOpacity as applyLayerOpacity,
+  hasFillLayer,
+  addWmsLayer,
+  removeWmsLayer,
+  setWmsOpacity as applyWmsOpacity,
+  hasWmsLayer,
+} from "../map/auto_layer";
 import WmsTreeNodeView from "./WmsTreeNode";
 import type { WmsTreeNode } from "../wms/types";
 import { getChartSpec } from "../charts/auto_chart";
@@ -100,6 +108,27 @@ export default function LayerPanelBody(props: LayerPanelBodyProps) {
       }
     }
   }, [props.map, props.selectedWmsKeys, props.wmsOpacity, wmsLayerInfo]);
+
+  // 신규 도구 결과 layer가 등장하면 실제 map paint property에서 opacity를 읽어 seed.
+  // 이렇게 하면 slider 초기 위치가 실제 fill-opacity와 일치 — 첫 인터랙션 시 점핑 방지.
+  useEffect(() => {
+    if (!props.map) return;
+    let changed = false;
+    const next = { ...props.layerOpacity };
+    for (const h of props.toolHistory) {
+      if (!h.layerId || next[h.layerId] !== undefined) continue;
+      try {
+        const p = props.map.getPaintProperty?.(h.layerId, "fill-opacity");
+        if (typeof p === "number") {
+          next[h.layerId] = p;
+          changed = true;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    if (changed) props.setLayerOpacity(next);
+  }, [props.toolHistory, props.map]);
 
   function toggleWmsSelect(key: string) {
     const next = new Set(props.selectedWmsKeys);

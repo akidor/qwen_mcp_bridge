@@ -18,6 +18,7 @@ import SettingsTab from "./panel/SettingsTab";
 import DebugTab from "./panel/DebugTab";
 import ChatTab from "./panel/ChatTab";
 import { DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT } from "./panel/FloatingPanel";
+import { applyToolResult, fitToBbox } from "./map/auto_layer";
 
 interface ToolHistoryEntry {
   name: string;
@@ -222,14 +223,12 @@ export default function App() {
                   ]);
                   return;
                 }
-                import("./map/auto_layer").then(({ applyToolResult, fitToBbox }) => {
-                  const r = applyToolResult(mapInstance, toolName, resultText);
-                  setToolHistory((cur) => [
-                    ...cur,
-                    { name: toolName, ts: Date.now(), layerId: r.layerId, message: r.message, bbox: r.bbox, resultText },
-                  ]);
-                  if (r.bbox) fitToBbox(mapInstance, r.bbox);
-                });
+                const r = applyToolResult(mapInstance, toolName, resultText);
+                setToolHistory((cur) => [
+                  ...cur,
+                  { name: toolName, ts: Date.now(), layerId: r.layerId, message: r.message, bbox: r.bbox, resultText },
+                ]);
+                if (r.bbox) fitToBbox(mapInstance, r.bbox);
               }}
               drawnFeatures={drawnFeatures}
             />
