@@ -340,6 +340,30 @@ export function applyToolResult(map: any, toolName: string, resultText: string):
     return { layerId: id, message: `필지 집계 추가됨 (${id})` };
   }
 
+  if (toolName === "design__generate_scene") {
+    try {
+      const parsedDesign = JSON.parse(resultText);
+      const result = parsedDesign?.result ?? parsedDesign;
+      const sceneData = result?.scene_data;
+      const candidates = sceneData?.candidates ?? [];
+      if (!Array.isArray(candidates) || candidates.length === 0) {
+        return { layerId: null, message: "design.generate_scene: candidates 없음" };
+      }
+      const layerKey = `${Date.now()}`;
+      const r = addMassExtrusion(map, layerKey, candidates);
+      if (!r.added) {
+        return { layerId: null, message: "design.generate_scene: footprint 누락 — 지도 시각화 skip" };
+      }
+      return {
+        layerId: `mass-${layerKey}`,
+        message: `design 매스 ${candidates.length}개 fill-extrusion`,
+        bbox: r.bbox,
+      };
+    } catch (e) {
+      return { layerId: null, message: `design 결과 파싱 실패: ${e instanceof Error ? e.message : e}` };
+    }
+  }
+
   return { layerId: null, message: `'${toolName}'은 자동 layer 매핑 없음` };
 }
 
@@ -446,4 +470,79 @@ export function setWmsOpacity(map: any, layerKey: string, opacity: number): void
 export function hasWmsLayer(map: any, layerKey: string): boolean {
   if (!map) return false;
   return !!map.getLayer(`wms-${layerKey}`);
+}
+
+// === P16 Design mass extrusion ===
+
+const MASS_COLORS = ["#e74c3c", "#3498db", "#2ecc71"]; // 후보별 색상 (반투명)
+
+function _candidateFootprintGeoJSON(candidate: any): GeoJSON.Polygon | null {
+  // candidate에 직접 GeoJSON Polygon 형태의 footprint가 있으면 사용. 없으면 null.
+  if (candidate?.geometry?.type === "Polygon") return candidate.geometry as GeoJSON.Polygon;
+  return null;
+}
+
+function _candidateMaxHeight(candidate: any): number {
+  return candidate?.metrics?.height ?? 0;
+}
+
+export function addMassExtrusion(
+  map: any,
+  layerKey: string,
+  candidates: any[],
+): { added: boolean; bbox?: [number, number, number, number] } {
+  if (!map) return { added: false };
+  const sourceId = `mass-${layerKey}`;
+  const layerId = `mass-${layerKey}`;
+  if (map.getLayer(layerId)) {
+    map.removeLayer(layerId);
+  }
+  if (map.getSource(sourceId)) {
+    map.removeSource(sourceId);
+  }
+
+  const features: GeoJSON.Feature[] = [];
+  let minLng = 180, minLat = 90, maxLng = -180, maxLat = -90;
+  candidates.forEach((c, idx) => {
+    const fp = _candidateFootprintGeoJSON(c);
+    if (!fp) return;
+    const height = _candidateMaxHeight(c);
+    features.push({
+      type: "Feature",
+      geometry: fp,
+      properties: {
+        candidate_id: c.id,
+        height,
+        color: MASS_COLORS[idx % MASS_COLORS.length],
+      },
+    });
+    for (const ring of fp.coordinates) {
+      for (const [lng, lat] of ring) {
+        if (lng < minLng) minLng = lng;
+        if (lat < minLat) minLat = lat;
+        if (lng > maxLng) maxLng = lng;
+        if (lat > maxLat) maxLat = lat;
+      }
+    }
+  });
+
+  if (features.length === 0) return { added: false };
+
+  map.addSource(sourceId, {
+    type: "geojson",
+    data: { type: "FeatureCollection", features },
+  });
+  map.addLayer({
+    id: layerId,
+    type: "fill-extrusion",
+    source: sourceId,
+    paint: {
+      "fill-extrusion-color": ["get", "color"],
+      "fill-extrusion-height": ["get", "height"],
+      "fill-extrusion-base": 0,
+      "fill-extrusion-opacity": 0.5,
+    },
+  });
+
+  return { added: true, bbox: [minLng, minLat, maxLng, maxLat] };
 }
