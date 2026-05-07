@@ -31,8 +31,8 @@ interface FloatingPanelProps {
   drawnFeatures: { id: string; geometry: GeoJSON.Geometry; label: string; ts?: number }[];
 }
 
-const DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B";
-const DEFAULT_SYSTEM_PROMPT = "한국어로 짧고 명확하게 답해.";
+export const DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B";
+export const DEFAULT_SYSTEM_PROMPT = "한국어로 짧고 명확하게 답해.";
 
 export default function FloatingPanel({
   map, basemap, setBasemap,

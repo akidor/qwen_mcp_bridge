@@ -7,6 +7,17 @@ import { fetchWmsTree } from "./wms/tree";
 import type { WmsTreeNode } from "./wms/types";
 import { createDraw, geomToLabel } from "./map/draw";
 import type { DrawnFeature } from "./panel/DrawnFeatures";
+import { useIsMobile } from "./hooks/useIsMobile";
+import { useVisualViewportHeight } from "./hooks/useVisualViewportHeight";
+import MobileLayout from "./mobile/MobileLayout";
+import MobileMapBar from "./mobile/MobileMapBar";
+import BottomSheet from "./mobile/BottomSheet";
+import BottomSheetContent from "./mobile/BottomSheetContent";
+import LayerPanelBody from "./panel/LayerPanelBody";
+import SettingsTab from "./panel/SettingsTab";
+import DebugTab from "./panel/DebugTab";
+import ChatTab from "./panel/ChatTab";
+import { DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT } from "./panel/FloatingPanel";
 
 interface ToolHistoryEntry {
   name: string;
@@ -36,6 +47,14 @@ export default function App() {
   const [drawEnabled, setDrawEnabled] = useState(false);
   const [drawnFeatures, setDrawnFeatures] = useState<DrawnFeature[]>([]);
   const [drawInstance, setDrawInstance] = useState<any>(null);
+
+  const isMobile = useIsMobile();
+  const vv = useVisualViewportHeight();
+  const [bottomSheetMode, setBottomSheetMode] = useState<"layer" | "settings" | "debug" | null>(null);
+  const [mobileModel, setMobileModel] = useState(DEFAULT_MODEL);
+  const [mobileSystemPrompt, setMobileSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
+  const [mobileDisableThinking, setMobileDisableThinking] = useState(true);
+  const [mobileLastChunk, setMobileLastChunk] = useState<unknown>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,6 +150,104 @@ export default function App() {
     setDrawnFeatures((cur) => cur.filter((f) => f.id !== id));
   }
 
+  if (isMobile) {
+    const layerSlot = (
+      <LayerPanelBody
+        map={mapInstance}
+        basemap={basemap}
+        setBasemap={setBasemap}
+        terrainEnabled={terrainEnabled}
+        setTerrainEnabled={setTerrainEnabled}
+        buildingsEnabled={buildingsEnabled}
+        setBuildingsEnabled={setBuildingsEnabled}
+        toolHistory={toolHistory}
+        layerVisibility={layerVisibility}
+        setLayerVisibility={setLayerVisibility}
+        layerOpacity={layerOpacity}
+        setLayerOpacity={setLayerOpacity}
+        wmsTree={wmsTree}
+        wmsTreeError={wmsTreeError}
+        wmsTreeLoading={wmsTreeLoading}
+        selectedWmsKeys={selectedWmsKeys}
+        setSelectedWmsKeys={setSelectedWmsKeys}
+        wmsOpacity={wmsOpacity}
+        setWmsOpacity={setWmsOpacity}
+        onReloadWmsTree={() => setWmsReloadToken((t) => t + 1)}
+        drawEnabled={drawEnabled}
+        setDrawEnabled={setDrawEnabled}
+        drawnFeatures={drawnFeatures}
+        toggleDrawnFeatureVisible={toggleDrawnFeatureVisible}
+        removeDrawnFeature={removeDrawnFeature}
+        onChartClick={() => { /* mobile에선 차트 모달 14차 외 yagni */ }}
+      />
+    );
+    const settingsSlot = (
+      <SettingsTab
+        model={mobileModel}
+        setModel={setMobileModel}
+        systemPrompt={mobileSystemPrompt}
+        setSystemPrompt={setMobileSystemPrompt}
+        disableThinking={mobileDisableThinking}
+        setDisableThinking={setMobileDisableThinking}
+      />
+    );
+    const debugSlot = <DebugTab lastChunk={mobileLastChunk} />;
+
+    return (
+      <>
+        <MobileLayout
+          isKeyboardOpen={vv.isKeyboardOpen}
+          visualViewportHeightPx={vv.height}
+          mapSlot={
+            <MapView basemap={basemap} onReady={(map) => setMapInstance(map)} />
+          }
+          mapBarSlot={
+            <MobileMapBar
+              onLayerClick={() => setBottomSheetMode("layer")}
+              onSettingsClick={() => setBottomSheetMode("settings")}
+            />
+          }
+          chatSlot={
+            <ChatTab
+              mode="mobile"
+              model={mobileModel}
+              systemPrompt={mobileSystemPrompt}
+              disableThinking={mobileDisableThinking}
+              onLastChunk={setMobileLastChunk}
+              onToolResult={(toolName, resultText) => {
+                if (!mapInstance) {
+                  setToolHistory((cur) => [
+                    ...cur,
+                    { name: toolName, ts: Date.now(), layerId: null, message: "map 미준비", resultText },
+                  ]);
+                  return;
+                }
+                import("./map/auto_layer").then(({ applyToolResult, fitToBbox }) => {
+                  const r = applyToolResult(mapInstance, toolName, resultText);
+                  setToolHistory((cur) => [
+                    ...cur,
+                    { name: toolName, ts: Date.now(), layerId: r.layerId, message: r.message, bbox: r.bbox, resultText },
+                  ]);
+                  if (r.bbox) fitToBbox(mapInstance, r.bbox);
+                });
+              }}
+              drawnFeatures={drawnFeatures}
+            />
+          }
+        />
+        <BottomSheet open={bottomSheetMode !== null} onClose={() => setBottomSheetMode(null)}>
+          <BottomSheetContent
+            mode={bottomSheetMode}
+            layerSlot={layerSlot}
+            settingsSlot={settingsSlot}
+            debugSlot={debugSlot}
+          />
+        </BottomSheet>
+      </>
+    );
+  }
+
+  // 데스크톱 (기존)
   return (
     <>
       <MapView
