@@ -39,7 +39,6 @@ export function buildTree(items: WmsLayerItem[], parentId: number, depth: number
 }
 
 export function isNodeDisabled(node: WmsTreeNode): boolean {
-  if (node.label.startsWith("(전체)")) return true;
   if (node.depth === 0 && node.label === "지구단위계획구역") return true;
   if (node.depth === 0 && countLeaves(node) >= 100) return true;
   return false;
