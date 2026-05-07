@@ -3,12 +3,26 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { getChartSpec, MiniChart, ChartSpec } from "../charts/auto_chart";
 import ChartModal from "../charts/ChartModal";
+import MassModal from "../three/MassModal";
+import type { SceneData } from "../three/scene-types";
 
 type ChatRole = "user" | "assistant" | "system";
 
 type ToolEvent =
   | { kind: "start"; name: string; argsPreview: string }
-  | { kind: "end"; name: string; durationMs: number; resultSize: number; error: boolean; resultText?: string };
+  | {
+      kind: "end";
+      name: string;
+      durationMs: number;
+      resultSize: number;
+      error: boolean;
+      resultText?: string;
+      sceneCandidates?: Array<{
+        id: string;
+        typology: string;
+        metrics: { floors: number; height: number; gfa: number; far: number; bcr: number };
+      }>;
+    };
 
 type ChatMessage = {
   role: ChatRole;
@@ -34,6 +48,7 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
   ]);
   const [isSending, setIsSending] = useState(false);
   const [modalSpec, setModalSpec] = useState<ChartSpec | null>(null);
+  const [massModal, setMassModal] = useState<{ sceneData: SceneData; defaultCandidateId?: string } | null>(null);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -118,6 +133,18 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
           }
           if (data.type === "tool_call_end") {
             const resultText = typeof data.result_text === "string" ? data.result_text : "";
+            const scene = parseSceneData(data.name, resultText);
+            const sceneCandidates = scene?.candidates?.map((c: any) => ({
+              id: c.id,
+              typology: c.typology,
+              metrics: {
+                floors: c.metrics?.floors ?? 0,
+                height: c.metrics?.height ?? 0,
+                gfa: c.metrics?.gfa ?? 0,
+                far: c.metrics?.far ?? 0,
+                bcr: c.metrics?.bcr ?? 0,
+              },
+            }));
             appendToolEvent(setMessages, assistantIdx, {
               kind: "end",
               name: data.name,
@@ -125,6 +152,7 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
               resultSize: data.result_size ?? 0,
               error: !!data.error,
               resultText,
+              sceneCandidates,
             });
             onToolResult?.(data.name, resultText);
             continue;
@@ -259,6 +287,33 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
                     </div>
                   );
                 })}
+                {message.toolEvents.map((ev, i) =>
+                  ev.kind === "end" && ev.sceneCandidates && ev.sceneCandidates.length > 0 ? (
+                    <div key={`mass-${i}`} className="mass-thumbnail-card">
+                      <div className="mass-thumbnail-title">🏢 매스 후보 {ev.sceneCandidates.length}개</div>
+                      <ul className="mass-thumbnail-list">
+                        {ev.sceneCandidates.map((c) => (
+                          <li key={c.id} className="mass-thumbnail-item">
+                            <span className="mass-thumbnail-id">{c.id}</span>
+                            <span className="mass-thumbnail-meta">
+                              {c.typology} · {c.metrics.floors}층 · {Math.round(c.metrics.gfa)}㎡ · 용적 {Math.round(c.metrics.far)}%
+                            </span>
+                            <button
+                              className="mass-thumbnail-btn"
+                              onClick={() => {
+                                const scene = parseSceneData(ev.name, ev.resultText ?? "");
+                                if (scene) setMassModal({ sceneData: scene.sceneData, defaultCandidateId: c.id });
+                              }}
+                              title="3D 풀스크린 뷰어"
+                            >
+                              🏢 3D
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null
+                )}
               </div>
             ) : null}
             {message.role === "assistant" ? (
@@ -278,8 +333,31 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
       </div>
       {mode !== "mobile" && composerForm}
       <ChartModal spec={modalSpec} onClose={() => setModalSpec(null)} />
+      {massModal && (
+        <MassModal
+          open={true}
+          onClose={() => setMassModal(null)}
+          sceneData={massModal.sceneData}
+          defaultCandidateId={massModal.defaultCandidateId}
+        />
+      )}
     </div>
   );
+}
+
+function parseSceneData(toolName: string, resultText: string): { sceneData: SceneData; candidates: any[] } | null {
+  if (toolName !== "design__generate_scene") return null;
+  if (!resultText) return null;
+  try {
+    const parsed = JSON.parse(resultText);
+    const result = parsed?.result ?? parsed;
+    const sceneData = result?.scene_data;
+    if (!sceneData || typeof sceneData !== "object") return null;
+    const candidates = sceneData.candidates ?? [];
+    return { sceneData, candidates };
+  } catch {
+    return null;
+  }
 }
 
 function appendAssistantContent(setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>, idx: number, chunk: string) {
