@@ -830,3 +830,61 @@ body {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* === P14 Mobile UI === */
+:root {
+  --mobile-map-row: 60vh;
+  --mobile-chat-row: 40vh;
+  --mobile-map-min: 30vh;
+  --vv-height: 100vh;
+}
+
+.mobile-layout {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: var(--mobile-map-row) var(--mobile-chat-row);
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--bg);
+}
+.mobile-layout.keyboard-open {
+  grid-template-rows: var(--mobile-map-min) calc(var(--vv-height) - var(--mobile-map-min));
+}
+
+.mobile-map-slot {
+  position: relative;
+  overflow: hidden;
+}
+.mobile-chat-slot {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.mobile-map-bar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  display: flex;
+  gap: 6px;
+}
+.mobile-map-bar-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: var(--panel-shadow);
+}
+.mobile-map-bar-button:active {
+  transform: scale(0.95);
+}
