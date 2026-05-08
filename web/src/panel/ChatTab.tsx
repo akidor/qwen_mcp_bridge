@@ -382,7 +382,7 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
               {message.role === "assistant" ? (
                 <div className="message-content markdown-body">
                   {message.content ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{redactPnu(message.content, prevUserAsksPnu(messages, index))}</ReactMarkdown>
                   ) : isSending && index === messages.length - 1 ? (
                     <span className="dots">…</span>
                   ) : null}
@@ -413,6 +413,25 @@ function autoResizeTextarea(el: HTMLTextAreaElement) {
   el.style.height = "auto";
   const next = Math.min(el.scrollHeight, 192); // max 8 lines × 24px line-height
   el.style.height = `${next}px`;
+}
+
+// 19자리 숫자 PNU와 dash 형식 PNU(`1168010100-100-1`)을 답변에서 redact.
+// 사용자가 직접 PNU/코드/식별자를 요청한 경우엔 그대로 둠.
+const PNU_DASH_RE = /\b\d{10}[-_]\d+[-_]\d+\b/g;
+const PNU_19_RE = /\b\d{19}\b/g;
+const PNU_ASK_RE = /(PNU|pnu|식별자|필지\s*코드|코드를?\s*알려|19\s*자리)/;
+
+function prevUserAsksPnu(messages: ChatMessage[], assistantIdx: number): boolean {
+  for (let i = assistantIdx - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role === "user") return PNU_ASK_RE.test(m.content);
+  }
+  return false;
+}
+
+function redactPnu(text: string, allow: boolean): string {
+  if (allow) return text;
+  return text.replace(PNU_DASH_RE, "(필지)").replace(PNU_19_RE, "(필지)");
 }
 
 function countToolGroups(toolEvents: ToolEvent[] | undefined): { tools: number; charts: number; masses: number } {
