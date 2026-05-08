@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import MapView from "./map/MapView";
-import { BasemapKind } from "./map/basemaps";
+import { BasemapKind, BASEMAP_ORDER } from "./map/basemaps";
 import FloatingPanel from "./panel/FloatingPanel";
 import LayerPanel from "./panel/LayerPanel";
 import { fetchWmsTree } from "./wms/tree";
@@ -180,9 +180,15 @@ export default function App() {
 
   function handleUiAction(action: string, params: any) {
     switch (action) {
-      case "ui__set_basemap":
-        if (typeof params?.kind === "string") setBasemap(params.kind as BasemapKind);
+      case "ui__set_basemap": {
+        const kind = params?.kind;
+        if (typeof kind === "string" && (BASEMAP_ORDER as string[]).includes(kind)) {
+          setBasemap(kind as BasemapKind);
+        } else {
+          console.warn("ui_action set_basemap: invalid kind", kind);
+        }
         break;
+      }
       case "ui__toggle_wms_layer": {
         const label = String(params?.label ?? "").trim();
         if (!label) break;
@@ -204,14 +210,17 @@ export default function App() {
       case "ui__enable_draw":
         if (typeof params?.on === "boolean") setDrawEnabled(params.on);
         break;
-      case "ui__fly_to":
-        if (mapInstance && typeof params?.lng === "number" && typeof params?.lat === "number") {
-          mapInstance.flyTo({
-            center: [params.lng, params.lat],
-            zoom: typeof params.zoom === "number" ? params.zoom : 14,
-          });
+      case "ui__fly_to": {
+        // Qwen이 string으로 보낼 가능성 — Number 변환 후 NaN guard.
+        const lng = Number(params?.lng);
+        const lat = Number(params?.lat);
+        const zoomRaw = Number(params?.zoom);
+        const zoom = Number.isFinite(zoomRaw) ? zoomRaw : 14;
+        if (mapInstance && Number.isFinite(lng) && Number.isFinite(lat)) {
+          mapInstance.flyTo({ center: [lng, lat], zoom });
         }
         break;
+      }
       case "ui__clear_layers": {
         const cat = String(params?.category ?? "all");
         if (mapInstance && (cat === "all" || cat === "tools")) {

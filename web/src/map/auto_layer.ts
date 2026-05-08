@@ -625,20 +625,28 @@ export function clearAllToolLayers(map: any): number {
   if (!map?.getStyle) return 0;
   const style = map.getStyle();
   const layers: any[] = style?.layers ?? [];
+  // 실제 prefix: parcel- / parcels- (parcel-pt-, parcels-union-, parcels-agg-, parcels-boundary- 포함),
+  // isochrone_walk- / isochrone_bike- / isochrone_transit- / isochrone_car- (uniqueId가 underscore 보존),
+  // poi- / route- / buffer- / find-parcels- / mass- .
   const targets = layers.filter((l) =>
     typeof l.id === "string" &&
     (l.id.startsWith("parcel-") ||
      l.id.startsWith("parcels-") ||
-     l.id.startsWith("isochrone-") ||
+     l.id.startsWith("isochrone_") ||
      l.id.startsWith("poi-") ||
      l.id.startsWith("route-") ||
      l.id.startsWith("buffer-") ||
      l.id.startsWith("find-parcels") ||
      l.id.startsWith("mass-"))
   );
+  // -fill / -line / -label 등 sub-layer가 같은 source를 공유 — source 제거는 dedup 후 한 번만.
+  const sourcesToRemove = new Set<string>();
   for (const l of targets) {
     try { map.removeLayer(l.id); } catch {}
-    try { map.removeSource(l.source ?? l.id); } catch {}
+    if (typeof l.source === "string") sourcesToRemove.add(l.source);
+  }
+  for (const src of sourcesToRemove) {
+    try { map.removeSource(src); } catch {}
   }
   return targets.length;
 }
