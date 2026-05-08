@@ -38,7 +38,7 @@ interface ToolHistoryEntry {
 }
 
 export default function App() {
-  const [basemap, setBasemap] = useState<BasemapKind>("white");
+  const [basemap, setBasemap] = useState<BasemapKind>("base");
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [terrainEnabled, setTerrainEnabled] = useState(false);
   const [buildingsEnabled, setBuildingsEnabled] = useState(false);
@@ -71,7 +71,23 @@ export default function App() {
     setWmsTreeError(null);
     fetchWmsTree()
       .then((tree) => {
-        if (!cancelled) setWmsTree(tree);
+        if (cancelled) return;
+        setWmsTree(tree);
+        // 첫 트리 로드 시 "필지" 포함 leaf 자동 활성 (사용자 기본 시인성 향상).
+        setSelectedWmsKeys((cur) => {
+          if (cur.size > 0) return cur;
+          const next = new Set(cur);
+          function walk(nodes: WmsTreeNode[]) {
+            for (const n of nodes) {
+              if (n.isLeaf && n.layer && !n.disabled && n.label.includes("필지")) {
+                next.add(n.id);
+              }
+              if (n.children.length) walk(n.children);
+            }
+          }
+          walk(tree);
+          return next;
+        });
       })
       .catch((e: unknown) => {
         if (!cancelled) setWmsTreeError(e instanceof Error ? e.message : String(e));

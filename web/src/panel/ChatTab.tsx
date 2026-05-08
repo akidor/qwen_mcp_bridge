@@ -721,7 +721,7 @@ function appendToolEvent(setMessages: React.Dispatch<React.SetStateAction<ChatMe
 // Markdown trailing 2-space로 줄바꿈 강제 (ReactMarkdown은 단일 \n을 공백으로 취급).
 const HELP_MESSAGE = [
   "[UI] 슬래시 명령:",
-  "/배경 [백지도|일반|위성|야간|하이브리드] — 배경 지도 변경",
+  "/배경 [기본|회색|백지도|위성|야간|하이브리드] — 배경 지도 변경",
   "/레이어 <이름> [켜|끄기] — WMS overlay 토글 (이름 부분 매칭)",
   "/3d [켜|끄기] — 지형+건물 모두",
   "/3d 지형 [켜|끄기] / /3d 건물 [켜|끄기] — 개별",
@@ -734,6 +734,9 @@ const HELP_MESSAGE = [
 const BASEMAP_KO_TO_EN: Record<string, string> = {
   "백지도": "white",
   "일반": "base",
+  "기본": "base",
+  "회색": "gray",
+  "그레이": "gray",
   "위성": "satellite",
   "야간": "midnight",
   "하이브리드": "hybrid",

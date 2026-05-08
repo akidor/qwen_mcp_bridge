@@ -18,15 +18,15 @@ UI_TOOLS: dict[str, dict] = {
     "ui__set_basemap": {
         "description": (
             "지도 배경(basemap)을 변경한다. "
-            "kind: white(백지도) | base(일반) | satellite(위성) | midnight(야간) | hybrid(하이브리드). "
-            "예: 사용자가 '위성지도로 바꿔'라 하면 kind=satellite."
+            "kind: base(일반·기본값) | gray(회색조) | white(백지도) | satellite(위성) | midnight(야간) | hybrid(하이브리드). "
+            "예: '위성지도로 바꿔' → kind=satellite, '회색지도' → kind=gray."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "kind": {
                     "type": "string",
-                    "enum": ["white", "base", "satellite", "midnight", "hybrid"],
+                    "enum": ["base", "gray", "white", "satellite", "midnight", "hybrid"],
                 },
             },
             "required": ["kind"],
