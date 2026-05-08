@@ -72,9 +72,10 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
   }
 
   useEffect(() => {
+    // 모바일은 column-reverse로 새 메시지가 자동으로 composer 직하에 등장 — 자동 스크롤 불필요.
+    if (mode === "mobile") return;
     if (!userNearBottomRef.current) return;
-    // behavior:"auto"로 smooth animation 큐 누적·취소 없이 즉시 하단 고정.
-    // mobile/desktop 동일 — composer 위, messages 아래(시간순), 자동 스크롤로 최신 추적.
+    // 데스크톱은 시간순(맨 아래가 최신) — behavior:"auto"로 smooth 큐 누적 없이 즉시 하단 고정.
     messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages, mode]);
 

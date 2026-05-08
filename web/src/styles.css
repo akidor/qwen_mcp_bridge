@@ -961,11 +961,13 @@ body {
   padding: 8px 12px;
 }
 .chat-tab.mobile .message-list.mobile {
+  /* 모바일은 시간 역순 — composer 직하에 최신 메시지가 등장하고 이전 메시지는 아래로 밀려남.
+     첫 assistant 안내 메시지는 자연스럽게 가장 아래(시간상 첫 메시지)에 위치. */
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
   padding: 12px;
   gap: 12px;
 }
