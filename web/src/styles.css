@@ -212,9 +212,12 @@ body {
   padding: 8px 10px;
   font-family: inherit;
   font-size: 13px;
-  resize: vertical;
+  resize: none;
   background: var(--bg);
   color: var(--fg);
+  line-height: 24px;
+  max-height: 192px;
+  overflow-y: auto;
 }
 .composer textarea:focus {
   outline: 2px solid var(--accent-soft);

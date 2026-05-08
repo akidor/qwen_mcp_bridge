@@ -52,6 +52,7 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
   const [massModal, setMassModal] = useState<{ sceneData: SceneData; defaultCandidateId?: string } | null>(null);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -66,6 +67,9 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
     const baseMessages = [...messages, { role: "user" as const, content: prompt }];
     setMessages(baseMessages);
     setInput("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
     setIsSending(true);
 
     const assistantIdx = baseMessages.length;
@@ -214,11 +218,15 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
   const composerForm = (
     <form ref={composerFormRef} className={`composer ${mode === "mobile" ? "mobile-composer" : ""}`} onSubmit={handleSubmit}>
       <textarea
+        ref={textareaRef}
         value={input}
-        onChange={(event) => setInput(event.target.value)}
+        onChange={(event) => {
+          setInput(event.target.value);
+          autoResizeTextarea(event.currentTarget);
+        }}
         onKeyDown={handleComposerKeyDown}
         placeholder="자연어로 질의..."
-        rows={3}
+        rows={1}
       />
       <div className="composer-row">
         <span className="composer-hint">Enter 전송 · Shift+Enter 줄바꿈</span>
@@ -351,6 +359,12 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
       )}
     </div>
   );
+}
+
+function autoResizeTextarea(el: HTMLTextAreaElement) {
+  el.style.height = "auto";
+  const next = Math.min(el.scrollHeight, 192); // max 8 lines × 24px line-height
+  el.style.height = `${next}px`;
 }
 
 function parseSceneData(toolName: string, resultText: string): { sceneData: SceneData; candidates: any[] } | null {
