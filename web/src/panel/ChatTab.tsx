@@ -297,7 +297,7 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
               {message.reasoning ? (
                 <details className="reasoning-block">
                   <summary>thinking ({message.reasoning.length} chars)</summary>
-                  <pre>{message.reasoning}</pre>
+                  <pre>{redactPnu(message.reasoning, prevUserAsksPnu(messages, index))}</pre>
                 </details>
               ) : null}
               {message.role === "assistant" && message.toolEvents && message.toolEvents.length > 0 ? (() => {
