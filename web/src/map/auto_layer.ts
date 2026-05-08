@@ -13,16 +13,21 @@ function attachParcelPopup(map: any, fillLayerId: string) {
     const f = e.features?.[0];
     if (!f) return;
     const props = f.properties ?? {};
-    const addr = props.address ?? props.juso ?? "(주소 미상)";
+    const rawAddr = (props.address ?? props.juso ?? "").toString().trim();
+    const addr = rawAddr || "(주소 미상)";
     const areaM2 = Number(props.area_m2 ?? 0);
     const py = areaM2 > 0 ? ` · ${Math.round(areaM2)}㎡ (${Math.round(areaM2 / 3.3058)}평)` : "";
     const inc = props.incorporation_pct != null ? ` · 편입률 ${props.incorporation_pct}%` : "";
-    const html = `<div class="parcel-popup">${addr}${py}${inc}</div>`;
     map.getCanvas().style.cursor = "pointer";
     if (!_parcelPopup) {
       _parcelPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 8 });
     }
-    _parcelPopup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+    // setText로 textContent 사용 — innerHTML 우회로 XSS 방지 (address가 backend GeoJSON 속성이라
+    // 신뢰 영역이지만 보수적으로 escape 보장).
+    _parcelPopup.setLngLat(e.lngLat).setText(`${addr}${py}${inc}`).addTo(map);
+    // 클래스는 popup-content 외부에서 부여 (텍스트만 박는 setText로는 inner span 못 만듦).
+    const popupEl = _parcelPopup.getElement();
+    popupEl?.classList.add("parcel-popup-wrap");
   };
   const onLeave = () => {
     map.getCanvas().style.cursor = "";
