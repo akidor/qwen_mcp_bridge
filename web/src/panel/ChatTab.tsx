@@ -255,81 +255,86 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
       <div className={`message-list ${mode === "mobile" ? "mobile" : ""}`}>
         {messages.map((message, index) => (
           <article key={`${message.role}-${index}`} className={`message ${message.role}`}>
-            <p className="message-role">{message.role}</p>
-            {message.reasoning ? (
-              <details className="reasoning-block">
-                <summary>thinking ({message.reasoning.length} chars)</summary>
-                <pre>{message.reasoning}</pre>
-              </details>
-            ) : null}
-            {message.toolEvents && message.toolEvents.length > 0 ? (
-              <div className="tool-events-block">
-                <div className="tool-pills">
-                  {message.toolEvents.map((te, i) =>
-                    te.kind === "start" ? (
-                      <span key={i} className="tool-pill running">🔧 {te.name}</span>
-                    ) : (
-                      <span key={i} className={`tool-pill ${te.error ? "err" : "ok"}`}>
-                        {te.error ? "✗" : "✓"} {te.name} · {te.durationMs}ms · {te.resultSize}B
-                      </span>
-                    )
+            <div className="message-avatar" aria-hidden="true">
+              {message.role === "assistant" ? "🤖" : message.role === "user" ? "👤" : "⚙️"}
+            </div>
+            <div className="message-body">
+              <p className="message-role">{message.role}</p>
+              {message.reasoning ? (
+                <details className="reasoning-block">
+                  <summary>thinking ({message.reasoning.length} chars)</summary>
+                  <pre>{message.reasoning}</pre>
+                </details>
+              ) : null}
+              {message.toolEvents && message.toolEvents.length > 0 ? (
+                <div className="tool-events-block">
+                  <div className="tool-pills">
+                    {message.toolEvents.map((te, i) =>
+                      te.kind === "start" ? (
+                        <span key={i} className="tool-pill running">🔧 {te.name}</span>
+                      ) : (
+                        <span key={i} className={`tool-pill ${te.error ? "err" : "ok"}`}>
+                          {te.error ? "✗" : "✓"} {te.name} · {te.durationMs}ms · {te.resultSize}B
+                        </span>
+                      )
+                    )}
+                  </div>
+                  {message.toolEvents.map((te, i) => {
+                    if (te.kind !== "end" || te.error || !te.resultText) return null;
+                    const spec = getChartSpec(te.name, te.resultText);
+                    if (!spec) return null;
+                    return (
+                      <div
+                        key={`chart-${i}`}
+                        onClick={() => setModalSpec(spec)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <MiniChart spec={spec} />
+                      </div>
+                    );
+                  })}
+                  {message.toolEvents.map((ev, i) =>
+                    ev.kind === "end" && ev.sceneCandidates && ev.sceneCandidates.length > 0 ? (
+                      <div key={`mass-${i}`} className="mass-thumbnail-card">
+                        <div className="mass-thumbnail-title">🏢 매스 후보 {ev.sceneCandidates.length}개</div>
+                        <ul className="mass-thumbnail-list">
+                          {ev.sceneCandidates.map((c) => (
+                            <li key={c.id} className="mass-thumbnail-item">
+                              <span className="mass-thumbnail-id">{c.id}</span>
+                              <span className="mass-thumbnail-meta">
+                                {c.typology} · {c.metrics.floors}층 · {Math.round(c.metrics.gfa)}㎡ · 용적 {Math.round(c.metrics.far)}%
+                              </span>
+                              <button
+                                className="mass-thumbnail-btn"
+                                onClick={() => {
+                                  if (ev.sceneData) {
+                                    setMassModal({ sceneData: ev.sceneData, defaultCandidateId: c.id });
+                                  }
+                                }}
+                                title="3D 풀스크린 뷰어"
+                              >
+                                🏢 3D
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null
                   )}
                 </div>
-                {message.toolEvents.map((te, i) => {
-                  if (te.kind !== "end" || te.error || !te.resultText) return null;
-                  const spec = getChartSpec(te.name, te.resultText);
-                  if (!spec) return null;
-                  return (
-                    <div
-                      key={`chart-${i}`}
-                      onClick={() => setModalSpec(spec)}
-                      style={{ cursor: "pointer" }}
-                    >
-                      <MiniChart spec={spec} />
-                    </div>
-                  );
-                })}
-                {message.toolEvents.map((ev, i) =>
-                  ev.kind === "end" && ev.sceneCandidates && ev.sceneCandidates.length > 0 ? (
-                    <div key={`mass-${i}`} className="mass-thumbnail-card">
-                      <div className="mass-thumbnail-title">🏢 매스 후보 {ev.sceneCandidates.length}개</div>
-                      <ul className="mass-thumbnail-list">
-                        {ev.sceneCandidates.map((c) => (
-                          <li key={c.id} className="mass-thumbnail-item">
-                            <span className="mass-thumbnail-id">{c.id}</span>
-                            <span className="mass-thumbnail-meta">
-                              {c.typology} · {c.metrics.floors}층 · {Math.round(c.metrics.gfa)}㎡ · 용적 {Math.round(c.metrics.far)}%
-                            </span>
-                            <button
-                              className="mass-thumbnail-btn"
-                              onClick={() => {
-                                if (ev.sceneData) {
-                                  setMassModal({ sceneData: ev.sceneData, defaultCandidateId: c.id });
-                                }
-                              }}
-                              title="3D 풀스크린 뷰어"
-                            >
-                              🏢 3D
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null
-                )}
-              </div>
-            ) : null}
-            {message.role === "assistant" ? (
-              <div className="message-content markdown-body">
-                {message.content ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
-                ) : isSending && index === messages.length - 1 ? (
-                  <span className="dots">…</span>
-                ) : null}
-              </div>
-            ) : (
-              <p className="message-content">{message.content}</p>
-            )}
+              ) : null}
+              {message.role === "assistant" ? (
+                <div className="message-content markdown-body">
+                  {message.content ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                  ) : isSending && index === messages.length - 1 ? (
+                    <span className="dots">…</span>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="message-content">{message.content}</p>
+              )}
+            </div>
           </article>
         ))}
         <div ref={messagesEndRef} />
