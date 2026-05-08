@@ -30,6 +30,7 @@ type ChatMessage = {
   content: string;
   reasoning?: string;
   toolEvents?: ToolEvent[];
+  toolsExpanded?: boolean;
 };
 
 interface ChatTabProps {
@@ -72,8 +73,13 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
     }
     setIsSending(true);
 
+    collapsePreviousAssistantTools();
+
     const assistantIdx = baseMessages.length;
-    setMessages((current) => [...current, { role: "assistant", content: "", reasoning: "", toolEvents: [] }]);
+    setMessages((current) => [
+      ...current,
+      { role: "assistant", content: "", reasoning: "", toolEvents: [], toolsExpanded: true },
+    ]);
 
     const requestMessages: Array<{ role: ChatRole; content: string }> = [];
     if (systemPrompt.trim()) requestMessages.push({ role: "system", content: systemPrompt.trim() });
@@ -191,6 +197,12 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
     abortRef.current?.abort();
   }
 
+  function collapsePreviousAssistantTools() {
+    setMessages((cur) =>
+      cur.map((m) => (m.role === "assistant" && m.toolsExpanded ? { ...m, toolsExpanded: false } : m))
+    );
+  }
+
   function handleAttachGeometry() {
     if (!drawnFeatures || drawnFeatures.length === 0) return;
     // ts 최대값 = 가장 최근 그리거나 수정한 feature
@@ -274,63 +286,85 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
                   <pre>{message.reasoning}</pre>
                 </details>
               ) : null}
-              {message.toolEvents && message.toolEvents.length > 0 ? (
-                <div className="tool-events-block">
-                  <div className="tool-pills">
-                    {message.toolEvents.map((te, i) =>
-                      te.kind === "start" ? (
-                        <span key={i} className="tool-pill running">🔧 {te.name}</span>
-                      ) : (
-                        <span key={i} className={`tool-pill ${te.error ? "err" : "ok"}`}>
-                          {te.error ? "✗" : "✓"} {te.name} · {te.durationMs}ms · {te.resultSize}B
-                        </span>
-                      )
-                    )}
-                  </div>
-                  {message.toolEvents.map((te, i) => {
-                    if (te.kind !== "end" || te.error || !te.resultText) return null;
-                    const spec = getChartSpec(te.name, te.resultText);
-                    if (!spec) return null;
-                    return (
-                      <div
-                        key={`chart-${i}`}
-                        onClick={() => setModalSpec(spec)}
-                        style={{ cursor: "pointer" }}
-                      >
-                        <MiniChart spec={spec} />
-                      </div>
-                    );
-                  })}
-                  {message.toolEvents.map((ev, i) =>
-                    ev.kind === "end" && ev.sceneCandidates && ev.sceneCandidates.length > 0 ? (
-                      <div key={`mass-${i}`} className="mass-thumbnail-card">
-                        <div className="mass-thumbnail-title">🏢 매스 후보 {ev.sceneCandidates.length}개</div>
-                        <ul className="mass-thumbnail-list">
-                          {ev.sceneCandidates.map((c) => (
-                            <li key={c.id} className="mass-thumbnail-item">
-                              <span className="mass-thumbnail-id">{c.id}</span>
-                              <span className="mass-thumbnail-meta">
-                                {c.typology} · {c.metrics.floors}층 · {Math.round(c.metrics.gfa)}㎡ · 용적 {Math.round(c.metrics.far)}%
+              {message.role === "assistant" && message.toolEvents && message.toolEvents.length > 0 ? (() => {
+                const counts = countToolGroups(message.toolEvents);
+                const expanded = message.toolsExpanded !== false;
+                return (
+                  <div className="tool-events-block">
+                    <button
+                      type="button"
+                      className="tool-badge-row"
+                      onClick={() => {
+                        setMessages((cur) =>
+                          cur.map((m, mi) => (mi === index ? { ...m, toolsExpanded: !expanded } : m))
+                        );
+                      }}
+                    >
+                      {counts.tools > 0 && <span className="tool-badge">🔧×{counts.tools}</span>}
+                      {counts.charts > 0 && <span className="tool-badge">📊×{counts.charts}</span>}
+                      {counts.masses > 0 && <span className="tool-badge">🏢×{counts.masses}</span>}
+                      <span className="tool-badge-toggle">{expanded ? "▲" : "▼"}</span>
+                    </button>
+                    {expanded ? (
+                      <div className="tool-events-detail">
+                        <div className="tool-pills">
+                          {message.toolEvents.map((te, i) =>
+                            te.kind === "start" ? (
+                              <span key={i} className="tool-pill running">🔧 {te.name}</span>
+                            ) : (
+                              <span key={i} className={`tool-pill ${te.error ? "err" : "ok"}`}>
+                                {te.error ? "✗" : "✓"} {te.name} · {te.durationMs}ms · {te.resultSize}B
                               </span>
-                              <button
-                                className="mass-thumbnail-btn"
-                                onClick={() => {
-                                  if (ev.sceneData) {
-                                    setMassModal({ sceneData: ev.sceneData, defaultCandidateId: c.id });
-                                  }
-                                }}
-                                title="3D 풀스크린 뷰어"
-                              >
-                                🏢 3D
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
+                            )
+                          )}
+                        </div>
+                        {message.toolEvents.map((te, i) => {
+                          if (te.kind !== "end" || te.error || !te.resultText) return null;
+                          const spec = getChartSpec(te.name, te.resultText);
+                          if (!spec) return null;
+                          return (
+                            <div
+                              key={`chart-${i}`}
+                              onClick={() => setModalSpec(spec)}
+                              style={{ cursor: "pointer" }}
+                            >
+                              <MiniChart spec={spec} />
+                            </div>
+                          );
+                        })}
+                        {message.toolEvents.map((ev, i) =>
+                          ev.kind === "end" && ev.sceneCandidates && ev.sceneCandidates.length > 0 ? (
+                            <div key={`mass-${i}`} className="mass-thumbnail-card">
+                              <div className="mass-thumbnail-title">🏢 매스 후보 {ev.sceneCandidates.length}개</div>
+                              <ul className="mass-thumbnail-list">
+                                {ev.sceneCandidates.map((c) => (
+                                  <li key={c.id} className="mass-thumbnail-item">
+                                    <span className="mass-thumbnail-id">{c.id}</span>
+                                    <span className="mass-thumbnail-meta">
+                                      {c.typology} · {c.metrics.floors}층 · {Math.round(c.metrics.gfa)}㎡ · 용적 {Math.round(c.metrics.far)}%
+                                    </span>
+                                    <button
+                                      className="mass-thumbnail-btn"
+                                      onClick={() => {
+                                        if (ev.sceneData) {
+                                          setMassModal({ sceneData: ev.sceneData, defaultCandidateId: c.id });
+                                        }
+                                      }}
+                                      title="3D 풀스크린 뷰어"
+                                    >
+                                      🏢 3D
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null
+                        )}
                       </div>
-                    ) : null
-                  )}
-                </div>
-              ) : null}
+                    ) : null}
+                  </div>
+                );
+              })() : null}
               {message.role === "assistant" ? (
                 <div className="message-content markdown-body">
                   {message.content ? (
@@ -365,6 +399,18 @@ function autoResizeTextarea(el: HTMLTextAreaElement) {
   el.style.height = "auto";
   const next = Math.min(el.scrollHeight, 192); // max 8 lines × 24px line-height
   el.style.height = `${next}px`;
+}
+
+function countToolGroups(toolEvents: ToolEvent[] | undefined): { tools: number; charts: number; masses: number } {
+  if (!toolEvents) return { tools: 0, charts: 0, masses: 0 };
+  let tools = 0, charts = 0, masses = 0;
+  for (const ev of toolEvents) {
+    if (ev.kind !== "end") continue;
+    tools += 1;
+    if (ev.resultText && getChartSpec(ev.name, ev.resultText)) charts += 1;
+    if (ev.sceneCandidates && ev.sceneCandidates.length > 0) masses += ev.sceneCandidates.length;
+  }
+  return { tools, charts, masses };
 }
 
 function parseSceneData(toolName: string, resultText: string): { sceneData: SceneData; candidates: any[] } | null {
