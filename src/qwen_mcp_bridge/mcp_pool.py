@@ -161,10 +161,14 @@ class McpPool:
         return None
 
     def health(self) -> dict:
+        from qwen_mcp_bridge.ui_tools import UI_TOOLS
+        stdio_count = sum(len(v) for v in self._tools_by_domain.values())
         return {
             "ready_domains": list(self._sessions.keys()),
             "failed_domains": dict(self._failed_domains),
-            "tool_count": sum(len(v) for v in self._tools_by_domain.values()),
+            "tool_count": stdio_count + len(UI_TOOLS),
+            "stdio_tool_count": stdio_count,
+            "ui_tool_count": len(UI_TOOLS),
         }
 
     async def close(self) -> None:

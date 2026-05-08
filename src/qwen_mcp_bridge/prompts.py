@@ -67,6 +67,15 @@ def build_system_prompt(now: datetime | None = None) -> str:
     - 면적 ±15% 매칭 후보가 너무 많을 때는 용도지역(주거지역)으로 1차 필터링한 결과만 보여줌.
     - 빈땅(건물 유무) 필터는 도구 미지원 — "사용자가 직접 위성 이미지로 확인 권장" 안내.
     - 사용자가 후속으로 "이 부지 분석" 같이 단일 부지를 지목하면 `simulate.shadow_analysis` / `estimate.cost_detail` / `design.generate_scene` chain.
+16. **지도 UI 컨트롤 → ui__* 도구**:
+    - 사용자가 "켜/꺼/배경/위성/3D/그리기/이동/clear" 같은 UI 컨트롤 의도를 말하면 즉시 ui__* 도구 호출.
+    - 예: "용도지역 레이어 켜줘" → `ui__toggle_wms_layer(label="용도지역", on=true)`
+    - 예: "위성지도로 바꿔" → `ui__set_basemap(kind="satellite")`
+    - 예: "강남역으로 이동" → `locate__search_facility("강남역")` → 좌표 → `ui__fly_to(lng, lat)` chain
+    - 예: "3D 켜" → `ui__set_3d(terrain=true, buildings=true)`
+    - 예: "도구 결과 다 지워" → `ui__clear_layers(category="tools")`
+    - 답변에 "레이어 켰습니다" 같은 redundant 보고 X — 도구 호출 자체가 시각 변경. 짧게 "위성지도로 변경" 한 줄만.
+    - ui__* 도구는 즉시 ack(ok=true)이라 후속 chain 가능.
 
 {_DOMAIN_GUIDE}
 
