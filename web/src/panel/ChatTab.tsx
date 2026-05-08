@@ -46,9 +46,9 @@ interface ChatTabProps {
 }
 
 export default function ChatTab({ model, systemPrompt, disableThinking, onLastChunk, onToolResult, drawnFeatures = [], mode = "desktop", onUiAction, wmsLeafLabels = [] }: ChatTabProps) {
-  const [input, setInput] = useState("역삼동 738번지의 PNU와 면적 알려줘");
+  const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "assistant", content: "준비됨. 자연어로 질의하세요." },
+    { role: "assistant", content: "준비됨. 자연어로 질의하거나 `/도움말`로 슬래시 명령을 확인하세요." },
   ]);
   const [isSending, setIsSending] = useState(false);
   const [modalSpec, setModalSpec] = useState<ChartSpec | null>(null);
@@ -323,8 +323,37 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
 
   const autocompleteItems = autocompleteOpen ? getAutocompleteSuggestions(input) : [];
 
+  const isGeometryAttached = input.startsWith("[geometry:");
+  function handleDetachGeometry() {
+    setInput((cur) => {
+      if (!cur.startsWith("[geometry:")) return cur;
+      const nl = cur.indexOf("\n");
+      return nl === -1 ? "" : cur.slice(nl + 1);
+    });
+  }
+
   const composerForm = (
     <form ref={composerFormRef} className={`composer ${mode === "mobile" ? "mobile-composer" : ""}`} onSubmit={handleSubmit}>
+      {drawnFeatures && drawnFeatures.length > 0 && (
+        <div className="attach-badges-row">
+          {drawnFeatures.map((f) => {
+            const isLatest = drawnFeatures[drawnFeatures.length - 1].id === f.id;
+            const attached = isGeometryAttached && isLatest;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                className={`attach-badge${attached ? " attached" : ""}`}
+                onClick={attached ? handleDetachGeometry : handleAttachGeometry}
+                title={attached ? "첨부 해제" : `${f.label}을 채팅에 첨부`}
+              >
+                📎 {f.label}{attached ? " ✕" : ""}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <div className="composer-input-row">
       <textarea
         ref={textareaRef}
         value={input}
@@ -371,9 +400,21 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
           }
           handleComposerKeyDown(event);
         }}
-        placeholder="자연어 또는 / 슬래시 명령. /도움말"
+        placeholder="예: 역삼동 738번지의 PNU와 면적 알려줘"
         rows={1}
       />
+      {mode === "mobile" && (
+        isSending ? (
+          <button type="button" className="primary-button mobile-send" onClick={handleAbort} title="중단">
+            ⏹
+          </button>
+        ) : (
+          <button type="submit" className="primary-button mobile-send" disabled={!input.trim()} title="전송">
+            ↑
+          </button>
+        )
+      )}
+      </div>
       {autocompleteOpen && autocompleteItems.length > 0 && (
         <ul className="slash-autocomplete">
           {autocompleteItems.map((item, i) => (
@@ -392,32 +433,21 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
           ))}
         </ul>
       )}
-      <div className="composer-row">
-        <span className="composer-hint">Enter 전송 · Shift+Enter 줄바꿈</span>
-        <button
-          type="button"
-          className="attach-button"
-          onClick={handleAttachGeometry}
-          disabled={!drawnFeatures || drawnFeatures.length === 0}
-          title={
-            drawnFeatures && drawnFeatures.length > 0
-              ? `가장 최근 그린 ${drawnFeatures[drawnFeatures.length - 1].label}을 채팅에 첨부`
-              : "그린 영역 없음"
-          }
-        >
-          📎 영역 첨부 ({drawnFeatures?.length ?? 0})
-        </button>
-        <div style={{ display: "flex", gap: 8 }}>
-          {isSending ? (
-            <button type="button" className="secondary-button" onClick={handleAbort}>
-              중단
+      {mode !== "mobile" && (
+        <div className="composer-row">
+          <span className="composer-hint">Enter 전송 · Shift+Enter 줄바꿈</span>
+          <div style={{ display: "flex", gap: 8 }}>
+            {isSending ? (
+              <button type="button" className="secondary-button" onClick={handleAbort}>
+                중단
+              </button>
+            ) : null}
+            <button type="submit" className="primary-button" disabled={isSending}>
+              {isSending ? "..." : "전송"}
             </button>
-          ) : null}
-          <button type="submit" className="primary-button" disabled={isSending}>
-            {isSending ? "..." : "전송"}
-          </button>
+          </div>
         </div>
-      </div>
+      )}
     </form>
   );
 

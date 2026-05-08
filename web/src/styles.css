@@ -839,6 +839,57 @@ body {
   cursor: not-allowed;
 }
 
+/* === 영역 첨부 배지 (textarea 상단) === */
+.attach-badges-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.attach-badge {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg-muted);
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.attach-badge:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.attach-badge.attached {
+  background: var(--accent-soft, #eef);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* === composer input row + 모바일 inline 전송 === */
+.composer-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  position: relative;
+}
+.composer-input-row > textarea {
+  flex: 1;
+  min-width: 0;
+}
+.primary-button.mobile-send {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* === P14 Mobile UI === */
 :root {
   --mobile-map-row: 60vh;
