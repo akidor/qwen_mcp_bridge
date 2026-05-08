@@ -125,11 +125,13 @@ class McpPool:
         return session
 
     def list_openai_tools(self) -> list[dict]:
-        """모든 살아있는 도메인의 tool을 OpenAI 형식으로 반환 (prefix 부착)."""
+        """stdio MCP 도구 + in-process ui 도구를 합쳐 OpenAI 형식으로 반환."""
+        from qwen_mcp_bridge.ui_tools import list_ui_openai_tools
         result: list[dict] = []
         for domain, tools in self._tools_by_domain.items():
             for t in tools:
                 result.append(mcp_tool_to_openai(t, domain))
+        result.extend(list_ui_openai_tools())
         return result
 
     async def dispatch(self, prefixed_name: str, args: dict) -> Any:

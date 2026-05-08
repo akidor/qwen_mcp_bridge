@@ -18,8 +18,11 @@ async def test_pool_lifecycle_with_locate_domain_only():
         names = [t["function"]["name"] for t in tools]
         assert "locate__search_address" in names
         assert "locate__get_parcel" in names
-        # 모두 prefix 부착됐는지
-        assert all(n.startswith("locate__") for n in names)
+        # stdio 도구는 모두 locate prefix (in-process ui__* 제외)
+        stdio_names = [n for n in names if not n.startswith("ui__")]
+        assert all(n.startswith("locate__") for n in stdio_names)
+        # P18 T1: ui__* in-process 도구도 함께 노출
+        assert "ui__set_basemap" in names
 
         # dispatch — get_parcel은 backend 호출이라 빈 PNU로 InvalidInputError 기대.
         # mcp.call_tool은 에러 자체도 isError=true 결과로 반환하지 raise하지 않음.
