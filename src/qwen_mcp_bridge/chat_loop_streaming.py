@@ -264,14 +264,31 @@ async def run_chat_streaming(
                     logger.warning("tool_call args JSON 파싱 실패: %s", e)
                     err = True
                 else:
-                    try:
-                        result = await pool.dispatch(name, parsed_args)
-                        tool_text = _extract_tool_text(result)
-                        err = False
-                    except Exception as e:
-                        tool_text = f"도구 호출 오류: {e}"
-                        logger.warning("dispatch 오류 (%s): %s", name, e)
-                        err = True
+                    from qwen_mcp_bridge.ui_tools import is_ui_tool, dispatch_ui_tool
+                    if is_ui_tool(name):
+                        # ui__* 도구는 in-process dispatch + SSE ui_action event 발화
+                        try:
+                            ui_result = dispatch_ui_tool(name, parsed_args)
+                            tool_text = json.dumps(ui_result, ensure_ascii=False)
+                            err = False
+                            yield _sse({
+                                "type": "ui_action",
+                                "action": name,
+                                "params": parsed_args,
+                            })
+                        except Exception as e:
+                            tool_text = f"ui 도구 오류: {e}"
+                            logger.warning("ui dispatch 오류 (%s): %s", name, e)
+                            err = True
+                    else:
+                        try:
+                            result = await pool.dispatch(name, parsed_args)
+                            tool_text = _extract_tool_text(result)
+                            err = False
+                        except Exception as e:
+                            tool_text = f"도구 호출 오류: {e}"
+                            logger.warning("dispatch 오류 (%s): %s", name, e)
+                            err = True
 
                 # raw tool_text는 SSE(frontend)용, 모델로 가는 텍스트는 별도로 truncate.
                 raw_tool_text = tool_text
