@@ -13,9 +13,12 @@ function attachParcelPopup(map: any, fillLayerId: string) {
     const f = e.features?.[0];
     if (!f) return;
     const props = f.properties ?? {};
-    const baseJuso = (props.address ?? props.juso ?? "").toString().trim();
+    // backend는 address(=juso 동까지) + jibun을 분리 반환. substring 매칭은 false positive 가능 → 안 씀.
+    // address가 이미 합쳐진 경우(server-side _full_addr로) jibun 추가 합치기 skip.
+    const addrField = (props.address ?? props.juso ?? "").toString().trim();
     const jibun = (props.jibun ?? "").toString().trim();
-    const composed = baseJuso && jibun && !baseJuso.includes(jibun) ? `${baseJuso} ${jibun}` : baseJuso || jibun;
+    const usesServerComposed = addrField.endsWith(jibun) && jibun.length > 0;
+    const composed = jibun && addrField && !usesServerComposed ? `${addrField} ${jibun}` : addrField || jibun;
     const addr = composed || "(주소 미상)";
     const areaM2 = Number(props.area_m2 ?? 0);
     const py = areaM2 > 0 ? ` · ${Math.round(areaM2)}㎡ (${Math.round(areaM2 / 3.3058)}평)` : "";
