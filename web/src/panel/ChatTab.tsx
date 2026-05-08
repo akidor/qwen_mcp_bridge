@@ -41,9 +41,11 @@ interface ChatTabProps {
   onToolResult?: (toolName: string, resultText: string) => void;  // T5에서 사용
   drawnFeatures?: { id: string; geometry: GeoJSON.Geometry; label: string; ts?: number }[];
   mode?: "desktop" | "mobile";
+  onUiAction?: (action: string, params: any) => void;
+  wmsLeafLabels?: string[];
 }
 
-export default function ChatTab({ model, systemPrompt, disableThinking, onLastChunk, onToolResult, drawnFeatures = [], mode = "desktop" }: ChatTabProps) {
+export default function ChatTab({ model, systemPrompt, disableThinking, onLastChunk, onToolResult, drawnFeatures = [], mode = "desktop", onUiAction, wmsLeafLabels = [] }: ChatTabProps) {
   const [input, setInput] = useState("역삼동 738번지의 PNU와 면적 알려줘");
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: "assistant", content: "준비됨. 자연어로 질의하세요." },
@@ -148,6 +150,10 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
           }
           onLastChunk?.(data);
 
+          if (data.type === "ui_action") {
+            onUiAction?.(data.action, data.params);
+            continue;
+          }
           if (data.type === "tool_call_start") {
             appendToolEvent(setMessages, assistantIdx, {
               kind: "start",

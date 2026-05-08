@@ -18,7 +18,7 @@ import SettingsTab from "./panel/SettingsTab";
 import DebugTab from "./panel/DebugTab";
 import ChatTab from "./panel/ChatTab";
 import { DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT } from "./panel/FloatingPanel";
-import { applyToolResult, fitToBbox } from "./map/auto_layer";
+import { applyToolResult, fitToBbox, clearAllToolLayers } from "./map/auto_layer";
 
 interface ToolHistoryEntry {
   name: string;
@@ -151,6 +151,88 @@ export default function App() {
     setDrawnFeatures((cur) => cur.filter((f) => f.id !== id));
   }
 
+  function findWmsLeafByLabel(nodes: WmsTreeNode[], needle: string): WmsTreeNode | null {
+    const lower = needle.toLowerCase();
+    function walk(ns: WmsTreeNode[]): WmsTreeNode | null {
+      for (const n of ns) {
+        if (n.isLeaf && n.layer && n.label.toLowerCase().includes(lower)) return n;
+        if (n.children.length) {
+          const r = walk(n.children);
+          if (r) return r;
+        }
+      }
+      return null;
+    }
+    return walk(nodes);
+  }
+
+  function collectWmsLeafLabels(nodes: WmsTreeNode[]): string[] {
+    const out: string[] = [];
+    function walk(ns: WmsTreeNode[]) {
+      for (const n of ns) {
+        if (n.isLeaf && n.layer && !n.disabled) out.push(n.label);
+        if (n.children.length) walk(n.children);
+      }
+    }
+    walk(nodes);
+    return out;
+  }
+
+  function handleUiAction(action: string, params: any) {
+    switch (action) {
+      case "ui__set_basemap":
+        if (typeof params?.kind === "string") setBasemap(params.kind as BasemapKind);
+        break;
+      case "ui__toggle_wms_layer": {
+        const label = String(params?.label ?? "").trim();
+        if (!label) break;
+        const leaf = findWmsLeafByLabel(wmsTree, label);
+        if (!leaf) {
+          console.warn("ui_action toggle_wms_layer: leaf not found for", label);
+          break;
+        }
+        const next = new Set(selectedWmsKeys);
+        if (params?.on) next.add(leaf.id);
+        else next.delete(leaf.id);
+        setSelectedWmsKeys(next);
+        break;
+      }
+      case "ui__set_3d":
+        if (typeof params?.terrain === "boolean") setTerrainEnabled(params.terrain);
+        if (typeof params?.buildings === "boolean") setBuildingsEnabled(params.buildings);
+        break;
+      case "ui__enable_draw":
+        if (typeof params?.on === "boolean") setDrawEnabled(params.on);
+        break;
+      case "ui__fly_to":
+        if (mapInstance && typeof params?.lng === "number" && typeof params?.lat === "number") {
+          mapInstance.flyTo({
+            center: [params.lng, params.lat],
+            zoom: typeof params.zoom === "number" ? params.zoom : 14,
+          });
+        }
+        break;
+      case "ui__clear_layers": {
+        const cat = String(params?.category ?? "all");
+        if (mapInstance && (cat === "all" || cat === "tools")) {
+          clearAllToolLayers(mapInstance);
+          setToolHistory([]);
+          setLayerVisibility({});
+          setLayerOpacity({});
+        }
+        if (cat === "all" || cat === "draw") {
+          setDrawnFeatures([]);
+        }
+        if (cat === "all" || cat === "wms") {
+          setSelectedWmsKeys(new Set());
+        }
+        break;
+      }
+      default:
+        console.warn("unknown ui_action:", action);
+    }
+  }
+
   if (isMobile) {
     const layerSlot = (
       <LayerPanelBody
@@ -215,6 +297,8 @@ export default function App() {
               systemPrompt={mobileSystemPrompt}
               disableThinking={mobileDisableThinking}
               onLastChunk={setMobileLastChunk}
+              onUiAction={handleUiAction}
+              wmsLeafLabels={collectWmsLeafLabels(wmsTree)}
               onToolResult={(toolName, resultText) => {
                 if (!mapInstance) {
                   setToolHistory((cur) => [
@@ -266,6 +350,8 @@ export default function App() {
         layerVisibility={layerVisibility}
         setLayerVisibility={setLayerVisibility}
         drawnFeatures={drawnFeatures}
+        onUiAction={handleUiAction}
+        wmsLeafLabels={collectWmsLeafLabels(wmsTree)}
       />
       <LayerPanel
         map={mapInstance}

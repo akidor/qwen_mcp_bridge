@@ -619,3 +619,26 @@ export function addMassExtrusion(
 
   return { added: true, bbox: [minLng, minLat, maxLng, maxLat] };
 }
+
+/** 도구 결과로 추가된 모든 layer 정리 (clear_layers tools/all 용). */
+export function clearAllToolLayers(map: any): number {
+  if (!map?.getStyle) return 0;
+  const style = map.getStyle();
+  const layers: any[] = style?.layers ?? [];
+  const targets = layers.filter((l) =>
+    typeof l.id === "string" &&
+    (l.id.startsWith("parcel-") ||
+     l.id.startsWith("parcels-") ||
+     l.id.startsWith("isochrone-") ||
+     l.id.startsWith("poi-") ||
+     l.id.startsWith("route-") ||
+     l.id.startsWith("buffer-") ||
+     l.id.startsWith("find-parcels") ||
+     l.id.startsWith("mass-"))
+  );
+  for (const l of targets) {
+    try { map.removeLayer(l.id); } catch {}
+    try { map.removeSource(l.source ?? l.id); } catch {}
+  }
+  return targets.length;
+}
