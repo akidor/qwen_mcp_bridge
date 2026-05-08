@@ -125,7 +125,7 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
     const assistantIdx = baseMessages.length;
     setMessages((current) => [
       ...current,
-      { role: "assistant", content: "", reasoning: "", toolEvents: [], toolsExpanded: true },
+      { role: "assistant", content: "", reasoning: "", toolEvents: [], toolsExpanded: false },
     ]);
 
     const requestMessages: Array<{ role: ChatRole; content: string }> = [];
@@ -491,10 +491,12 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
                         <div className="tool-pills">
                           {message.toolEvents.map((te, i) =>
                             te.kind === "start" ? (
-                              <span key={i} className="tool-pill running">🔧 {te.name}</span>
+                              <span key={i} className="tool-pill running" title={te.name}>
+                                🔧 {prettyToolName(te.name)}
+                              </span>
                             ) : (
-                              <span key={i} className={`tool-pill ${te.error ? "err" : "ok"}`}>
-                                {te.error ? "✗" : "✓"} {te.name} · {te.durationMs}ms · {te.resultSize}B
+                              <span key={i} className={`tool-pill ${te.error ? "err" : "ok"}`} title={te.name}>
+                                {te.error ? "✗" : "✓"} {prettyToolName(te.name)} · {te.durationMs}ms · {te.resultSize}B
                               </span>
                             )
                           )}
@@ -599,6 +601,70 @@ function prevUserAsksPnu(messages: ChatMessage[], assistantIdx: number): boolean
 function redactPnu(text: string, allow: boolean): string {
   if (allow) return text;
   return text.replace(PNU_DASH_RE, "(필지)").replace(PNU_19_RE, "(필지)");
+}
+
+// MCP 영문 풀네임 → 한국어 위트 라벨. 도메인 단위 별칭 + 일부 동작은 더 구체적으로.
+const TOOL_PRETTY: Record<string, string> = {
+  // locate
+  "locate__search_address": "📍 주소 검색",
+  "locate__search_facility": "🏷️ 시설 검색",
+  "locate__make_buffer": "⭕ 버퍼",
+  "locate__parcels_in_boundary": "🗺️ 영역 내 필지",
+  "locate__pnu_to_geometry": "🧭 PNU 좌표화",
+  // inspect
+  "inspect__zoning": "🏛️ 용도지역",
+  "inspect__land_use": "🌳 토지이용",
+  "inspect__road_width": "🛣️ 진입도로",
+  "inspect__floor_area_ratio_limit": "📐 용적률",
+  // reach
+  "reach__isochrone_walk": "🚶 보행 등시선",
+  "reach__isochrone_bike": "🚴 자전거 등시선",
+  "reach__isochrone_transit": "🚌 대중교통 등시선",
+  "reach__isochrone_car": "🚗 차량 등시선",
+  "reach__poi_in_isochrone": "🏪 등시선 POI",
+  "reach__poi_in_radius": "🏪 반경 POI",
+  // analyze
+  "analyze__find_parcels": "🔍 필지 찾기",
+  "analyze__parcel_aggregation": "📊 필지 집계",
+  // simulate
+  "simulate__shadow_analysis": "☀️ 그림자",
+  "simulate__earthwork": "⛰️ 토공",
+  // estimate
+  "estimate__cost_quick": "💰 빠른 견적",
+  "estimate__cost_detail": "💰 상세 견적",
+  "estimate__parking": "🅿️ 주차",
+  "estimate__households": "🏘️ 세대수",
+  // design
+  "design__generate_scene": "🏗️ 매스 디자인",
+  // export
+  "export__pdf": "📄 PDF",
+  "export__dxf": "📐 DXF",
+  "export__3d": "🧊 3D",
+  "export__ifc": "🏢 IFC",
+  // ui
+  "ui__set_basemap": "🗺️ 배경 변경",
+  "ui__toggle_wms_layer": "🪟 레이어 토글",
+  "ui__set_3d": "🧱 3D 토글",
+  "ui__enable_draw": "✏️ 그리기",
+  "ui__fly_to": "🚀 이동",
+  "ui__clear_layers": "🧹 정리",
+};
+const DOMAIN_PRETTY: Record<string, string> = {
+  locate: "📍 필지툴",
+  inspect: "🏛️ 규제툴",
+  reach: "🚶 등시선툴",
+  analyze: "🔍 분석툴",
+  simulate: "☀️ 시뮬툴",
+  estimate: "💰 추정툴",
+  design: "🏗️ 디자인툴",
+  export: "📤 내보내기툴",
+  ui: "🖱️ UI툴",
+};
+function prettyToolName(name: string): string {
+  if (TOOL_PRETTY[name]) return TOOL_PRETTY[name];
+  const domain = name.split("__")[0];
+  if (DOMAIN_PRETTY[domain]) return DOMAIN_PRETTY[domain];
+  return name;
 }
 
 function countToolGroups(toolEvents: ToolEvent[] | undefined): { tools: number; charts: number; masses: number } {
