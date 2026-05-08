@@ -1,4 +1,37 @@
 /** Tool 결과 텍스트(JSON)를 파싱해 MapLibre source/layer로 자동 추가. */
+import maplibregl from "maplibre-gl";
+
+// 필지 popup용 글로벌 instance — 한 번에 1개만 노출.
+let _parcelPopup: maplibregl.Popup | null = null;
+const _parcelPopupLayers = new Set<string>();
+
+function attachParcelPopup(map: any, fillLayerId: string) {
+  if (_parcelPopupLayers.has(fillLayerId)) return;
+  _parcelPopupLayers.add(fillLayerId);
+
+  const onMove = (e: any) => {
+    const f = e.features?.[0];
+    if (!f) return;
+    const props = f.properties ?? {};
+    const addr = props.address ?? props.juso ?? "(주소 미상)";
+    const areaM2 = Number(props.area_m2 ?? 0);
+    const py = areaM2 > 0 ? ` · ${Math.round(areaM2)}㎡ (${Math.round(areaM2 / 3.3058)}평)` : "";
+    const inc = props.incorporation_pct != null ? ` · 편입률 ${props.incorporation_pct}%` : "";
+    const html = `<div class="parcel-popup">${addr}${py}${inc}</div>`;
+    map.getCanvas().style.cursor = "pointer";
+    if (!_parcelPopup) {
+      _parcelPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 8 });
+    }
+    _parcelPopup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+  const onLeave = () => {
+    map.getCanvas().style.cursor = "";
+    _parcelPopup?.remove();
+  };
+  map.on("mousemove", fillLayerId, onMove);
+  map.on("mouseleave", fillLayerId, onLeave);
+}
+
 
 const COLOR_PARCEL_FILL = "#7c3aed";
 const COLOR_PARCEL_OUTLINE = "#5b21b6";
@@ -304,6 +337,7 @@ export function applyToolResult(map: any, toolName: string, resultText: string):
         source: sourceId,
         paint: { "line-color": COLOR_AGGREGATION, "line-width": 1.5 },
       });
+      attachParcelPopup(map, `${id}-fill`);
       // bbox 계산해 모든 필지가 보이게 fit
       let minLng = 180, minLat = 90, maxLng = -180, maxLat = -90;
       for (const f of fc.features) {

@@ -1175,3 +1175,22 @@ body {
   gap: 8px;
   margin: 4px 0;
 }
+
+/* === Parcel hover popup === */
+.parcel-popup {
+  font-size: 12px;
+  color: var(--fg);
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+.maplibregl-popup-content {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  box-shadow: var(--panel-shadow);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.maplibregl-popup-tip {
+  border-top-color: var(--panel-bg);
+}
