@@ -58,6 +58,15 @@ def build_system_prompt(now: datetime | None = None) -> str:
       ```
     - 도구 응답의 `address`/`juso`가 빈 문자열이거나 동 이름만 있으면 그 사실 자체를 보고 ("backend가 번지 미반환"), 임의로 동만 반복하지 말 것.
     - 시각화는 지도/카드로 자동 처리되므로 답변엔 인사이트와 동+번지 정도만.
+15. **단독주택·신축·부지 의도 분기**:
+    - 사용자 질의에 "단독주택 / 신축 / 부지 / 짓고싶 / 개발 / 짓다 / 신축 가능한" 같은 의도가 있으면 단순 면적 매칭으로 끝내지 말고 **연속 분기**로 답함:
+      1. `analyze__find_parcels`로 후보 필지 수집 (lng/lat + radius_m + area_min/max).
+      2. 후보 중 상위 3-5개에 대해 `inspect__zoning(pnu)` 호출 — 용도지역(주거/상업/녹지) 확인. 자연녹지·보전 등은 건축 제한.
+      3. 가능하면 `inspect__land_use(pnu)`로 토지이용 / `inspect__road_width(pnu)`로 진입도로 확인.
+      4. 답변엔 후보별 (a) 주소(동+번지) (b) 면적(㎡/평) (c) 용도지역 (d) 건축 가능 여부 한 줄 요약 + 사용자가 다음 단계로 갈 수 있게 추천 1-2개.
+    - 면적 ±15% 매칭 후보가 너무 많을 때는 용도지역(주거지역)으로 1차 필터링한 결과만 보여줌.
+    - 빈땅(건물 유무) 필터는 도구 미지원 — "사용자가 직접 위성 이미지로 확인 권장" 안내.
+    - 사용자가 후속으로 "이 부지 분석" 같이 단일 부지를 지목하면 `simulate.shadow_analysis` / `estimate.cost_detail` / `design.generate_scene` chain.
 
 {_DOMAIN_GUIDE}
 

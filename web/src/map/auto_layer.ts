@@ -13,8 +13,10 @@ function attachParcelPopup(map: any, fillLayerId: string) {
     const f = e.features?.[0];
     if (!f) return;
     const props = f.properties ?? {};
-    const rawAddr = (props.address ?? props.juso ?? "").toString().trim();
-    const addr = rawAddr || "(주소 미상)";
+    const baseJuso = (props.address ?? props.juso ?? "").toString().trim();
+    const jibun = (props.jibun ?? "").toString().trim();
+    const composed = baseJuso && jibun && !baseJuso.includes(jibun) ? `${baseJuso} ${jibun}` : baseJuso || jibun;
+    const addr = composed || "(주소 미상)";
     const areaM2 = Number(props.area_m2 ?? 0);
     const py = areaM2 > 0 ? ` · ${Math.round(areaM2)}㎡ (${Math.round(areaM2 / 3.3058)}평)` : "";
     const inc = props.incorporation_pct != null ? ` · 편입률 ${props.incorporation_pct}%` : "";
