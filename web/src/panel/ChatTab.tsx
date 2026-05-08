@@ -53,12 +53,19 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
   const [massModal, setMassModal] = useState<{ sceneData: SceneData; defaultCandidateId?: string } | null>(null);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messageListRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isSending]);
+    if (mode === "mobile") return;  // mobile column-reverse는 자동 스크롤 X
+    const el = messageListRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distanceFromBottom < 120) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, mode]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -272,7 +279,7 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
   return (
     <div className={`chat-tab ${mode === "mobile" ? "mobile" : ""}`}>
       {mode === "mobile" && composerForm}
-      <div className={`message-list ${mode === "mobile" ? "mobile" : ""}`}>
+      <div ref={messageListRef} className={`message-list ${mode === "mobile" ? "mobile" : ""}`}>
         {messages.map((message, index) => (
           <article key={`${message.role}-${index}`} className={`message ${message.role}`}>
             <div className="message-avatar" aria-hidden="true">
