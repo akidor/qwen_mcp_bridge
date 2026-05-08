@@ -914,7 +914,7 @@ body {
   min-height: 0;
   overflow-y: auto;
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: column;
   padding: 12px;
   gap: 12px;
 }
