@@ -1191,3 +1191,35 @@ body {
 .parcel-popup-wrap .maplibregl-popup-tip {
   border-top-color: var(--panel-bg);
 }
+
+/* === P18 Slash autocomplete === */
+.composer { position: relative; }
+.slash-autocomplete {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 4px;
+  background: var(--panel-bg, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  box-shadow: var(--panel-shadow, 0 4px 12px rgba(0,0,0,0.1));
+  list-style: none;
+  padding: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 65;
+  margin-top: 0;
+}
+.slash-autocomplete-item {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--fg, #111);
+  cursor: pointer;
+  border-radius: 4px;
+}
+.slash-autocomplete-item:hover,
+.slash-autocomplete-item.active {
+  background: var(--accent-soft, #eef);
+  color: var(--accent, #3b82f6);
+}

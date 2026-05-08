@@ -53,6 +53,8 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
   const [isSending, setIsSending] = useState(false);
   const [modalSpec, setModalSpec] = useState<ChartSpec | null>(null);
   const [massModal, setMassModal] = useState<{ sceneData: SceneData; defaultCandidateId?: string } | null>(null);
+  const [autocompleteOpen, setAutocompleteOpen] = useState(false);
+  const [autocompleteIdx, setAutocompleteIdx] = useState(0);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
@@ -80,6 +82,34 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
     event.preventDefault();
     const prompt = input.trim();
     if (!prompt || isSending) return;
+
+    if (prompt.startsWith("/")) {
+      const r = parseSlashCommand(prompt, wmsLeafLabels);
+      if (r === "help") {
+        setMessages((cur) => [
+          ...cur,
+          { role: "user", content: prompt },
+          { role: "assistant", content: HELP_MESSAGE },
+        ]);
+      } else if (r) {
+        onUiAction?.(r.name, r.params);
+        setMessages((cur) => [
+          ...cur,
+          { role: "user", content: prompt },
+          { role: "assistant", content: `[UI] ${r.summary}` },
+        ]);
+      } else {
+        setMessages((cur) => [
+          ...cur,
+          { role: "user", content: prompt },
+          { role: "assistant", content: "[UI] 알 수 없는 슬래시 명령. /도움말 로 목록 확인." },
+        ]);
+      }
+      setInput("");
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+      setAutocompleteOpen(false);
+      return;
+    }
 
     const baseMessages = [...messages, { role: "user" as const, content: prompt }];
     setMessages(baseMessages);
@@ -247,19 +277,113 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
     }
   }
 
+  function getAutocompleteSuggestions(text: string): string[] {
+    if (!text.startsWith("/")) return [];
+    const body = text.slice(1).trim();
+    const tokens = body.split(/\s+/);
+    const cmd = tokens[0];
+
+    if (tokens.length <= 1) {
+      const all = ["배경", "레이어", "3d", "그리기", "이동", "지우기", "도움말"];
+      const lower = (cmd ?? "").toLowerCase();
+      return all.filter((c) => c.toLowerCase().startsWith(lower));
+    }
+
+    if (cmd === "배경") {
+      const partial = (tokens[1] ?? "").toLowerCase();
+      return Object.keys(BASEMAP_KO_TO_EN).filter((k) => k.toLowerCase().startsWith(partial));
+    }
+
+    if (cmd === "레이어" || cmd === "wms" || cmd === "layer") {
+      const last = tokens[tokens.length - 1] ?? "";
+      const isOnOffKw = last && Object.keys(ON_OFF_KO).some((k) => k.startsWith(last));
+      const labelPartial = (isOnOffKw ? tokens.slice(1, -1) : tokens.slice(1)).join(" ").toLowerCase();
+      if (!labelPartial) return wmsLeafLabels.slice(0, 8);
+      return wmsLeafLabels.filter((l) => l.toLowerCase().includes(labelPartial)).slice(0, 8);
+    }
+
+    if (cmd === "3d") {
+      const partial = (tokens[1] ?? "").toLowerCase();
+      const all = ["켜", "끄기", "지형", "건물"];
+      return all.filter((c) => c.toLowerCase().startsWith(partial));
+    }
+
+    if (cmd === "그리기") {
+      const partial = (tokens[1] ?? "").toLowerCase();
+      return ["켜", "끄기"].filter((c) => c.toLowerCase().startsWith(partial));
+    }
+
+    if (cmd === "지우기") {
+      const partial = (tokens[1] ?? "").toLowerCase();
+      return Object.keys(CLEAR_CATEGORY_KO_TO_EN).filter((k) => k.toLowerCase().startsWith(partial));
+    }
+
+    return [];
+  }
+
+  const autocompleteItems = autocompleteOpen ? getAutocompleteSuggestions(input) : [];
+
   const composerForm = (
     <form ref={composerFormRef} className={`composer ${mode === "mobile" ? "mobile-composer" : ""}`} onSubmit={handleSubmit}>
       <textarea
         ref={textareaRef}
         value={input}
         onChange={(event) => {
-          setInput(event.target.value);
+          const v = event.target.value;
+          setInput(v);
           autoResizeTextarea(event.currentTarget);
+          setAutocompleteOpen(v.startsWith("/"));
+          setAutocompleteIdx(0);
         }}
-        onKeyDown={handleComposerKeyDown}
-        placeholder="자연어로 질의..."
+        onKeyDown={(event) => {
+          if (autocompleteOpen && autocompleteItems.length > 0) {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              setAutocompleteIdx((i) => (i + 1) % autocompleteItems.length);
+              return;
+            }
+            if (event.key === "ArrowUp") {
+              event.preventDefault();
+              setAutocompleteIdx((i) => (i - 1 + autocompleteItems.length) % autocompleteItems.length);
+              return;
+            }
+            if (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) {
+              event.preventDefault();
+              const pick = autocompleteItems[autocompleteIdx];
+              const replaced = applyAutocomplete(input, pick);
+              setInput(replaced);
+              setAutocompleteOpen(false);
+              return;
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setAutocompleteOpen(false);
+              return;
+            }
+          }
+          handleComposerKeyDown(event);
+        }}
+        placeholder="자연어 또는 / 슬래시 명령. /도움말"
         rows={1}
       />
+      {autocompleteOpen && autocompleteItems.length > 0 && (
+        <ul className="slash-autocomplete">
+          {autocompleteItems.map((item, i) => (
+            <li
+              key={item}
+              className={`slash-autocomplete-item ${i === autocompleteIdx ? "active" : ""}`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setInput(applyAutocomplete(input, item));
+                setAutocompleteOpen(false);
+                textareaRef.current?.focus();
+              }}
+            >
+              {item}
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="composer-row">
         <span className="composer-hint">Enter 전송 · Shift+Enter 줄바꿈</span>
         <button
@@ -487,4 +611,135 @@ function appendToolEvent(setMessages: React.Dispatch<React.SetStateAction<ChatMe
     if (next[idx]) next[idx] = { ...next[idx], toolEvents: [...(next[idx].toolEvents || []), event] };
     return next;
   });
+}
+
+const HELP_MESSAGE = `[UI] 슬래시 명령:
+/배경 [백지도|일반|위성|야간|하이브리드] — 배경 지도 변경
+/레이어 <이름> [켜|끄기] — WMS overlay 토글 (이름 부분 매칭)
+/3d [켜|끄기] — 지형+건물 모두
+/3d 지형 [켜|끄기] / /3d 건물 [켜|끄기] — 개별
+/그리기 [켜|끄기] — 그리기 모드
+/이동 <lng> <lat> [<zoom>] — 카메라 이동
+/지우기 [전체|도구|그리기|wms] — 레이어 정리
+/도움말 — 이 메시지`;
+
+const BASEMAP_KO_TO_EN: Record<string, string> = {
+  "백지도": "white",
+  "일반": "base",
+  "위성": "satellite",
+  "야간": "midnight",
+  "하이브리드": "hybrid",
+};
+
+const ON_OFF_KO: Record<string, boolean> = {
+  "켜": true, "켜기": true, "on": true, "활성": true, "활성화": true,
+  "끄기": false, "꺼": false, "off": false, "비활성": false, "비활성화": false,
+};
+
+const CLEAR_CATEGORY_KO_TO_EN: Record<string, string> = {
+  "전체": "all", "all": "all",
+  "도구": "tools", "tools": "tools",
+  "그리기": "draw", "draw": "draw",
+  "wms": "wms", "오버레이": "wms",
+};
+
+interface SlashResult {
+  name: string;
+  params: any;
+  summary: string;
+}
+
+function parseSlashCommand(input: string, wmsLeafLabels: string[]): SlashResult | "help" | null {
+  const trimmed = input.trim();
+  if (!trimmed.startsWith("/")) return null;
+  const body = trimmed.slice(1).trim();
+  if (!body) return null;
+  const tokens = body.split(/\s+/);
+  const cmd = tokens[0];
+  const rest = tokens.slice(1);
+
+  if (cmd === "도움말" || cmd === "help") return "help";
+
+  if (cmd === "배경" || cmd === "basemap") {
+    const kindKo = rest[0];
+    const kindEn = BASEMAP_KO_TO_EN[kindKo] ?? kindKo;
+    if (!kindEn || !["white", "base", "satellite", "midnight", "hybrid"].includes(kindEn)) return null;
+    return { name: "ui__set_basemap", params: { kind: kindEn }, summary: `배경 지도 → ${kindKo}` };
+  }
+
+  if (cmd === "레이어" || cmd === "wms" || cmd === "layer") {
+    if (rest.length < 2) return null;
+    const last = rest[rest.length - 1];
+    const onOff = ON_OFF_KO[last];
+    if (typeof onOff !== "boolean") return null;
+    const labelTokens = rest.slice(0, -1);
+    const labelInput = labelTokens.join(" ");
+    const lower = labelInput.toLowerCase();
+    const match = wmsLeafLabels.find((l) => l.toLowerCase().includes(lower)) ?? labelInput;
+    return {
+      name: "ui__toggle_wms_layer",
+      params: { label: match, on: onOff },
+      summary: `${match} 레이어 ${onOff ? "켜기" : "끄기"}`,
+    };
+  }
+
+  if (cmd === "3d" || cmd === "3D") {
+    if (rest.length === 0) return null;
+    let target: "terrain" | "buildings" | "both" = "both";
+    let onOffToken = rest[0];
+    if (rest[0] === "지형" || rest[0] === "terrain") {
+      target = "terrain";
+      onOffToken = rest[1] ?? "";
+    } else if (rest[0] === "건물" || rest[0] === "buildings") {
+      target = "buildings";
+      onOffToken = rest[1] ?? "";
+    }
+    const onOff = ON_OFF_KO[onOffToken];
+    if (typeof onOff !== "boolean") return null;
+    const params: any = {};
+    if (target === "terrain" || target === "both") params.terrain = onOff;
+    if (target === "buildings" || target === "both") params.buildings = onOff;
+    return {
+      name: "ui__set_3d",
+      params,
+      summary: `3D ${target === "terrain" ? "지형" : target === "buildings" ? "건물" : "지형+건물"} ${onOff ? "켜기" : "끄기"}`,
+    };
+  }
+
+  if (cmd === "그리기" || cmd === "draw") {
+    const onOff = ON_OFF_KO[rest[0] ?? ""];
+    if (typeof onOff !== "boolean") return null;
+    return { name: "ui__enable_draw", params: { on: onOff }, summary: `그리기 ${onOff ? "켜기" : "끄기"}` };
+  }
+
+  if (cmd === "이동" || cmd === "fly" || cmd === "flyto") {
+    if (rest.length < 2) return null;
+    const lng = parseFloat(rest[0]);
+    const lat = parseFloat(rest[1]);
+    if (!isFinite(lng) || !isFinite(lat)) return null;
+    const zoom = rest.length >= 3 ? parseFloat(rest[2]) : undefined;
+    const params: any = { lng, lat };
+    if (typeof zoom === "number" && isFinite(zoom)) params.zoom = zoom;
+    return { name: "ui__fly_to", params, summary: `(${lng.toFixed(4)}, ${lat.toFixed(4)})로 이동` };
+  }
+
+  if (cmd === "지우기" || cmd === "clear") {
+    const catKo = rest[0] ?? "전체";
+    const catEn = CLEAR_CATEGORY_KO_TO_EN[catKo] ?? catKo;
+    if (!["all", "tools", "draw", "wms"].includes(catEn)) return null;
+    return { name: "ui__clear_layers", params: { category: catEn }, summary: `${catKo} 레이어 정리` };
+  }
+
+  return null;
+}
+
+function applyAutocomplete(input: string, pick: string): string {
+  if (!input.startsWith("/")) return input + " " + pick + " ";
+  const body = input.slice(1);
+  const tokens = body.split(/\s+/);
+  if (tokens.length === 0 || (tokens.length === 1 && tokens[0] === "")) {
+    return "/" + pick + " ";
+  }
+  tokens[tokens.length - 1] = pick;
+  return "/" + tokens.join(" ") + " ";
 }
