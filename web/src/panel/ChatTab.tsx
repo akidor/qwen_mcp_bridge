@@ -56,15 +56,22 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // 사용자가 위로 스크롤한 상태인지 추적. streaming 중 smooth 애니메이션 누적으로 viewport가
+  // distance > 120 영역에 밀려 자동 스크롤이 끊기는 회귀 방지.
+  const userNearBottomRef = useRef(true);
+
+  function handleListScroll() {
+    const el = messageListRef.current;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    userNearBottomRef.current = distance < 120;
+  }
 
   useEffect(() => {
     if (mode === "mobile") return;  // mobile column-reverse는 자동 스크롤 X
-    const el = messageListRef.current;
-    if (!el) return;
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    if (distanceFromBottom < 120) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
+    if (!userNearBottomRef.current) return;
+    // behavior:"auto"로 smooth animation 큐 누적·취소 없이 즉시 하단 고정.
+    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages, mode]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -279,7 +286,7 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
   return (
     <div className={`chat-tab ${mode === "mobile" ? "mobile" : ""}`}>
       {mode === "mobile" && composerForm}
-      <div ref={messageListRef} className={`message-list ${mode === "mobile" ? "mobile" : ""}`}>
+      <div ref={messageListRef} onScroll={handleListScroll} className={`message-list ${mode === "mobile" ? "mobile" : ""}`}>
         {messages.map((message, index) => (
           <article key={`${message.role}-${index}`} className={`message ${message.role}`}>
             <div className="message-avatar" aria-hidden="true">
