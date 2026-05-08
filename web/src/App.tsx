@@ -18,7 +18,15 @@ import SettingsTab from "./panel/SettingsTab";
 import DebugTab from "./panel/DebugTab";
 import ChatTab from "./panel/ChatTab";
 import { DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT } from "./panel/FloatingPanel";
-import { applyToolResult, fitToBbox, clearAllToolLayers } from "./map/auto_layer";
+import {
+  applyToolResult,
+  fitToBbox,
+  clearAllToolLayers,
+  addWmsLayer,
+  removeWmsLayer,
+  hasWmsLayer,
+  setWmsOpacity as applyWmsOpacity,
+} from "./map/auto_layer";
 
 interface ToolHistoryEntry {
   name: string;
@@ -75,6 +83,43 @@ export default function App() {
       cancelled = true;
     };
   }, [wmsReloadToken]);
+
+  // WMS overlay sync — selectedWmsKeys / wmsOpacity / wmsTree / mapInstance 어느 하나라도
+  // 변경되면 layer add/remove. LayerPanel(데스크톱)·LayerPanelBody(모바일)가 unmount된 상태에서
+  // 자연어 ui__toggle_wms_layer / 슬래시 /레이어 명령으로 외부 변경된 경우에도 즉시 반영되도록
+  // App 레벨에 single source of truth로 관리.
+  useEffect(() => {
+    if (!mapInstance) return;
+    const info = new Map<string, { layer: string; cqlFilter?: string }>();
+    function walk(nodes: WmsTreeNode[]) {
+      for (const n of nodes) {
+        if (n.isLeaf && n.layer) info.set(n.id, { layer: n.layer, cqlFilter: n.cqlFilter });
+        if (n.children.length) walk(n.children);
+      }
+    }
+    walk(wmsTree);
+    for (const key of selectedWmsKeys) {
+      const i = info.get(key);
+      if (i && !hasWmsLayer(mapInstance, key)) {
+        addWmsLayer(mapInstance, key, i.layer, i.cqlFilter);
+        const op = wmsOpacity[key];
+        if (typeof op === "number") applyWmsOpacity(mapInstance, key, op);
+      }
+    }
+    const style = mapInstance.getStyle?.();
+    const layers: any[] = style?.layers ?? [];
+    for (const l of layers) {
+      if (typeof l.id === "string" && l.id.startsWith("wms-")) {
+        const k = l.id.slice(4);
+        if (!selectedWmsKeys.has(k)) removeWmsLayer(mapInstance, k);
+      }
+    }
+    for (const [k, op] of Object.entries(wmsOpacity)) {
+      if (selectedWmsKeys.has(k) && hasWmsLayer(mapInstance, k)) {
+        applyWmsOpacity(mapInstance, k, op);
+      }
+    }
+  }, [mapInstance, selectedWmsKeys, wmsOpacity, wmsTree]);
 
   const onDrawCreateRef = useRef<(e: any) => void>(() => {});
   const onDrawDeleteRef = useRef<(e: any) => void>(() => {});

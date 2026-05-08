@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import {
   BasemapKind,
   BASEMAP_ORDER,
@@ -10,10 +10,6 @@ import {
   fitToBbox,
   setLayerOpacity as applyLayerOpacity,
   hasFillLayer,
-  addWmsLayer,
-  removeWmsLayer,
-  setWmsOpacity as applyWmsOpacity,
-  hasWmsLayer,
 } from "../map/auto_layer";
 import WmsTreeNodeView from "./WmsTreeNode";
 import type { WmsTreeNode } from "../wms/types";
@@ -70,44 +66,9 @@ export interface LayerPanelBodyProps {
 }
 
 export default function LayerPanelBody(props: LayerPanelBodyProps) {
-  const wmsLayerInfo = useMemo(() => {
-    const info = new Map<string, { layer: string; cqlFilter?: string }>();
-    function walk(nodes: WmsTreeNode[]) {
-      for (const n of nodes) {
-        if (n.isLeaf && n.layer) info.set(n.id, { layer: n.layer, cqlFilter: n.cqlFilter });
-        if (n.children.length) walk(n.children);
-      }
-    }
-    walk(props.wmsTree);
-    return info;
-  }, [props.wmsTree]);
-
-  useEffect(() => {
-    if (!props.map) return;
-    for (const key of props.selectedWmsKeys) {
-      const info = wmsLayerInfo.get(key);
-      if (info && !hasWmsLayer(props.map, key)) {
-        addWmsLayer(props.map, key, info.layer, info.cqlFilter);
-        const op = props.wmsOpacity[key];
-        if (typeof op === "number") applyWmsOpacity(props.map, key, op);
-      }
-    }
-    if (props.map.getStyle && props.map.getStyle()) {
-      const style = props.map.getStyle();
-      const layers = style.layers || [];
-      for (const layer of layers) {
-        if (typeof layer.id === "string" && layer.id.startsWith("wms-")) {
-          const key = layer.id.slice(4);
-          if (!props.selectedWmsKeys.has(key)) removeWmsLayer(props.map, key);
-        }
-      }
-    }
-    for (const [key, op] of Object.entries(props.wmsOpacity)) {
-      if (props.selectedWmsKeys.has(key) && hasWmsLayer(props.map, key)) {
-        applyWmsOpacity(props.map, key, op);
-      }
-    }
-  }, [props.map, props.selectedWmsKeys, props.wmsOpacity, wmsLayerInfo]);
+  // WMS add/remove sync는 App 레벨 useEffect로 이전 — BottomSheet 닫힘으로 LayerPanelBody가
+  // unmount된 상태에서 외부(자연어 ui__toggle_wms_layer / 슬래시 명령)로 selectedWmsKeys가
+  // 변경돼도 add/remove가 발동하도록.
 
   // 신규 도구 결과 layer가 등장하면 실제 map paint property에서 opacity를 읽어 seed.
   // 이렇게 하면 slider 초기 위치가 실제 fill-opacity와 일치 — 첫 인터랙션 시 점핑 방지.
