@@ -336,6 +336,8 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
           setAutocompleteIdx(0);
         }}
         onKeyDown={(event) => {
+          // 한글 IME composition 중에는 자동완성 키 가로채지 않음 (방향키로 후보 이동 등 IME 사용).
+          if (event.nativeEvent.isComposing) return;
           if (autocompleteOpen && autocompleteItems.length > 0) {
             if (event.key === "ArrowDown") {
               event.preventDefault();
@@ -350,9 +352,15 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
             if (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) {
               event.preventDefault();
               const pick = autocompleteItems[autocompleteIdx];
+              if (!pick) {
+                // items가 줄어들어 idx가 stale인 경우 — 그냥 닫기.
+                setAutocompleteOpen(false);
+                return;
+              }
               const replaced = applyAutocomplete(input, pick);
               setInput(replaced);
               setAutocompleteOpen(false);
+              if (textareaRef.current) autoResizeTextarea(textareaRef.current);
               return;
             }
             if (event.key === "Escape") {
@@ -613,15 +621,18 @@ function appendToolEvent(setMessages: React.Dispatch<React.SetStateAction<ChatMe
   });
 }
 
-const HELP_MESSAGE = `[UI] 슬래시 명령:
-/배경 [백지도|일반|위성|야간|하이브리드] — 배경 지도 변경
-/레이어 <이름> [켜|끄기] — WMS overlay 토글 (이름 부분 매칭)
-/3d [켜|끄기] — 지형+건물 모두
-/3d 지형 [켜|끄기] / /3d 건물 [켜|끄기] — 개별
-/그리기 [켜|끄기] — 그리기 모드
-/이동 <lng> <lat> [<zoom>] — 카메라 이동
-/지우기 [전체|도구|그리기|wms] — 레이어 정리
-/도움말 — 이 메시지`;
+// Markdown trailing 2-space로 줄바꿈 강제 (ReactMarkdown은 단일 \n을 공백으로 취급).
+const HELP_MESSAGE = [
+  "[UI] 슬래시 명령:",
+  "/배경 [백지도|일반|위성|야간|하이브리드] — 배경 지도 변경",
+  "/레이어 <이름> [켜|끄기] — WMS overlay 토글 (이름 부분 매칭)",
+  "/3d [켜|끄기] — 지형+건물 모두",
+  "/3d 지형 [켜|끄기] / /3d 건물 [켜|끄기] — 개별",
+  "/그리기 [켜|끄기] — 그리기 모드",
+  "/이동 <lng> <lat> [<zoom>] — 카메라 이동",
+  "/지우기 [전체|도구|그리기|wms] — 레이어 정리",
+  "/도움말 — 이 메시지",
+].join("  \n");
 
 const BASEMAP_KO_TO_EN: Record<string, string> = {
   "백지도": "white",
@@ -662,8 +673,9 @@ function parseSlashCommand(input: string, wmsLeafLabels: string[]): SlashResult 
 
   if (cmd === "배경" || cmd === "basemap") {
     const kindKo = rest[0];
-    const kindEn = BASEMAP_KO_TO_EN[kindKo] ?? kindKo;
-    if (!kindEn || !["white", "base", "satellite", "midnight", "hybrid"].includes(kindEn)) return null;
+    if (!kindKo) return null;
+    const kindEn = BASEMAP_KO_TO_EN[kindKo];
+    if (!kindEn) return null;
     return { name: "ui__set_basemap", params: { kind: kindEn }, summary: `배경 지도 → ${kindKo}` };
   }
 
@@ -675,7 +687,9 @@ function parseSlashCommand(input: string, wmsLeafLabels: string[]): SlashResult 
     const labelTokens = rest.slice(0, -1);
     const labelInput = labelTokens.join(" ");
     const lower = labelInput.toLowerCase();
-    const match = wmsLeafLabels.find((l) => l.toLowerCase().includes(lower)) ?? labelInput;
+    // 매칭 실패 시 null — 사용자에게 "알 수 없는 슬래시" fallback 메시지로 알림.
+    const match = wmsLeafLabels.find((l) => l.toLowerCase().includes(lower));
+    if (!match) return null;
     return {
       name: "ui__toggle_wms_layer",
       params: { label: match, on: onOff },
