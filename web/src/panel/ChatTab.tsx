@@ -67,16 +67,24 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
   function handleListScroll() {
     const el = messageListRef.current;
     if (!el) return;
-    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
-    userNearBottomRef.current = distance < 120;
+    if (mode === "mobile") {
+      // column-reverse에서 scrollTop=0이 시각상 최신 메시지 위치.
+      userNearBottomRef.current = el.scrollTop < 120;
+    } else {
+      const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+      userNearBottomRef.current = distance < 120;
+    }
   }
 
   useEffect(() => {
-    // 모바일은 column-reverse로 새 메시지가 자동으로 composer 직하에 등장 — 자동 스크롤 불필요.
-    if (mode === "mobile") return;
     if (!userNearBottomRef.current) return;
-    // 데스크톱은 시간순(맨 아래가 최신) — behavior:"auto"로 smooth 큐 누적 없이 즉시 하단 고정.
-    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+    if (mode === "mobile") {
+      // column-reverse: scrollTop=0이 시각상 가장 위(=composer 직하의 최신 메시지).
+      if (messageListRef.current) messageListRef.current.scrollTop = 0;
+    } else {
+      // 데스크톱은 시간순(맨 아래가 최신) — behavior:"auto"로 smooth 큐 누적 없이 즉시 하단 고정.
+      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+    }
   }, [messages, mode]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -406,12 +414,17 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
       />
       {mode === "mobile" && (
         isSending ? (
-          <button type="button" className="primary-button mobile-send" onClick={handleAbort} title="중단">
-            ⏹
+          <button type="button" className="primary-button mobile-send" onClick={handleAbort} title="중단" aria-label="중단">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="6" y="6" width="12" height="12" rx="2" />
+            </svg>
           </button>
         ) : (
-          <button type="submit" className="primary-button mobile-send" disabled={!input.trim()} title="전송">
-            ↑
+          <button type="submit" className="primary-button mobile-send" disabled={!input.trim()} title="전송" aria-label="전송">
+            {/* Slack-style paper plane */}
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M2.5 11.4 21 3.2c.7-.3 1.5.4 1.2 1.2l-8.2 18.5c-.3.8-1.5.8-1.7-.1l-2.1-7.4-7.4-2.1c-.9-.2-.9-1.4-.3-1.9z" />
+            </svg>
           </button>
         )
       )}

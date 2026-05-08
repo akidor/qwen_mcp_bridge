@@ -882,12 +882,17 @@ body {
   width: 40px;
   height: 40px;
   padding: 0;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+.primary-button.mobile-send svg {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 
 /* === P14 Mobile UI === */
@@ -922,6 +927,9 @@ body {
   flex-direction: column;
   border-top: 1px solid var(--border);
   background: var(--bg);
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  box-shadow: 0 -3px 10px rgba(0, 0, 0, 0.06);
 }
 
 .mobile-map-bar {
