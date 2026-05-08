@@ -277,24 +277,53 @@ export function applyToolResult(map: any, toolName: string, resultText: string):
       return addPolygonLayer(map, geom, uniqueId("parcel-pt"), COLOR_PARCEL_FILL, COLOR_PARCEL_OUTLINE);
     }
   }
-  // locate__parcels_in_boundary — FeatureCollection
-  if (toolName === "locate__parcels_in_boundary" && parsed?.type === "FeatureCollection") {
-    const id = uniqueId("parcels-boundary");
-    const sourceId = `${id}-src`;
-    map.addSource(sourceId, { type: "geojson", data: parsed });
-    map.addLayer({
-      id: `${id}-fill`,
-      type: "fill",
-      source: sourceId,
-      paint: { "fill-color": COLOR_AGGREGATION, "fill-opacity": 0.12 },
-    });
-    map.addLayer({
-      id: `${id}-line`,
-      type: "line",
-      source: sourceId,
-      paint: { "line-color": COLOR_AGGREGATION, "line-width": 1 },
-    });
-    return { layerId: id, message: `필지 ${parsed.features?.length ?? 0}개 추가됨` };
+  // locate__parcels_in_boundary / analyze__find_parcels — FeatureCollection 또는 {features: [...]}
+  if (
+    toolName === "locate__parcels_in_boundary" ||
+    toolName === "analyze__find_parcels"
+  ) {
+    const fc =
+      parsed?.type === "FeatureCollection"
+        ? parsed
+        : Array.isArray(parsed?.features)
+        ? { type: "FeatureCollection", features: parsed.features }
+        : null;
+    if (fc && fc.features && fc.features.length > 0) {
+      const id = uniqueId(toolName === "analyze__find_parcels" ? "find-parcels" : "parcels-boundary");
+      const sourceId = `${id}-src`;
+      map.addSource(sourceId, { type: "geojson", data: fc });
+      map.addLayer({
+        id: `${id}-fill`,
+        type: "fill",
+        source: sourceId,
+        paint: { "fill-color": COLOR_AGGREGATION, "fill-opacity": 0.18 },
+      });
+      map.addLayer({
+        id: `${id}-line`,
+        type: "line",
+        source: sourceId,
+        paint: { "line-color": COLOR_AGGREGATION, "line-width": 1.5 },
+      });
+      // bbox 계산해 모든 필지가 보이게 fit
+      let minLng = 180, minLat = 90, maxLng = -180, maxLat = -90;
+      for (const f of fc.features) {
+        const geom = f?.geometry;
+        if (!geom || geom.type !== "Polygon") continue;
+        for (const ring of geom.coordinates) {
+          for (const [lng, lat] of ring) {
+            if (lng < minLng) minLng = lng;
+            if (lat < minLat) minLat = lat;
+            if (lng > maxLng) maxLng = lng;
+            if (lat > maxLat) maxLat = lat;
+          }
+        }
+      }
+      const bbox: [number, number, number, number] | undefined =
+        isFinite(minLng) && minLng <= maxLng && minLat <= maxLat
+          ? [minLng, minLat, maxLng, maxLat]
+          : undefined;
+      return { layerId: id, message: `필지 ${fc.features.length}개 추가됨`, bbox };
+    }
   }
   // reach__isochrone_walk/bike/transit/car — { feature_collection: FeatureCollection }
   if (/^reach__isochrone_(walk|bike|transit|car)$/.test(toolName)) {
