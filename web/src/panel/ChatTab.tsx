@@ -314,9 +314,7 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
                         );
                       }}
                     >
-                      {counts.tools > 0 && <span className="tool-badge">🔧×{counts.tools}</span>}
-                      {counts.charts > 0 && <span className="tool-badge">📊×{counts.charts}</span>}
-                      {counts.masses > 0 && <span className="tool-badge">🏢×{counts.masses}</span>}
+                      <span className="tool-badge">🔧 {counts.tools}</span>
                       <span className="tool-badge-toggle">{expanded ? "▲" : "▼"}</span>
                     </button>
                     {expanded ? (
