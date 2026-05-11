@@ -786,6 +786,20 @@ function composeAddr(p: any): string {
   return juso || jibun || "(주소 미상)";
 }
 
+// 지목 분류 — shared/jimok.py와 동일. backend가 single-parcel 도구에서는 buildability
+// label을 안 보내므로 frontend에서 계산.
+const NON_BUILDABLE_JIMOK = new Set(["도","천","구","유","제","수","공","체","운","광","양","묘","사","종"]);
+const DIFFICULT_JIMOK = new Set(["전","답","과","목","임"]);
+const BUILDABLE_JIMOK = new Set(["대","잡"]);
+function buildabilityLabel(jimok: string | undefined): string | undefined {
+  const j = (jimok ?? "").trim();
+  if (!j) return undefined;
+  if (NON_BUILDABLE_JIMOK.has(j)) return `❌ ${j}(건축 불가)`;
+  if (DIFFICULT_JIMOK.has(j)) return `⚠️ ${j}(전용허가 필요)`;
+  if (BUILDABLE_JIMOK.has(j)) return `✅ ${j}(건축 가능)`;
+  return `⚠️ ${j}(확인 필요)`;
+}
+
 function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | undefined {
   if (!resultText) return undefined;
   try {
@@ -800,7 +814,12 @@ function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | 
       const areaM2 = typeof parsed?.area_m2 === "number" ? parsed.area_m2 : Number(parsed?.area_m2) || undefined;
       const pnu = typeof parsed?.pnu === "string" ? parsed.pnu : undefined;
       const jimok = typeof parsed?.jimok === "string" ? parsed.jimok : undefined;
-      return [{ address, pnu, areaM2, jimok, geometry: geom, bbox: bboxOfGeom(geom) }];
+      return [{
+        address, pnu, areaM2, jimok,
+        buildability: buildabilityLabel(jimok),
+        geometry: geom,
+        bbox: bboxOfGeom(geom),
+      }];
     }
 
     // 다수 필지 — FeatureCollection
