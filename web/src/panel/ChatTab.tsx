@@ -772,11 +772,31 @@ function bboxOfGeom(geom: any): [number, number, number, number] | undefined {
   return [minLng, minLat, maxLng, maxLat];
 }
 
+function composeAddr(p: any): string {
+  const juso = (p?.address ?? p?.juso ?? "").toString().trim();
+  const jibun = (p?.jibun ?? "").toString().trim();
+  if (jibun && juso && !juso.endsWith(jibun)) return `${juso} ${jibun}`;
+  return juso || jibun || "(주소 미상)";
+}
+
 function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | undefined {
-  if (toolName !== "locate__parcels_in_boundary" && toolName !== "analyze__find_parcels") return undefined;
   if (!resultText) return undefined;
   try {
-    const parsed = JSON.parse(resultText);
+    const raw = JSON.parse(resultText);
+    const parsed = raw && raw.ok === true && raw.result ? raw.result : raw;
+
+    // 단일 필지 — locate__get_parcel: { pnu, address, jibun, area_m2, geometry }
+    if (toolName === "locate__get_parcel" || toolName === "locate__parcels_union") {
+      const geom = parsed?.geometry;
+      if (!geom || typeof geom !== "object") return undefined;
+      const address = composeAddr(parsed);
+      const areaM2 = typeof parsed?.area_m2 === "number" ? parsed.area_m2 : Number(parsed?.area_m2) || undefined;
+      const pnu = typeof parsed?.pnu === "string" ? parsed.pnu : undefined;
+      return [{ address, pnu, areaM2, geometry: geom, bbox: bboxOfGeom(geom) }];
+    }
+
+    // 다수 필지 — FeatureCollection
+    if (toolName !== "locate__parcels_in_boundary" && toolName !== "analyze__find_parcels") return undefined;
     const fc =
       parsed?.type === "FeatureCollection"
         ? parsed
@@ -787,12 +807,7 @@ function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | 
     const cards: ParcelCard[] = [];
     for (const f of fc.features) {
       const p = f?.properties ?? {};
-      const juso = (p.address ?? p.juso ?? "").toString().trim();
-      const jibun = (p.jibun ?? "").toString().trim();
-      let address = "";
-      if (jibun && juso && !juso.endsWith(jibun)) address = `${juso} ${jibun}`;
-      else address = juso || jibun;
-      address = address || "(주소 미상)";
+      const address = composeAddr(p);
       const areaM2 = typeof p.area_m2 === "number" ? p.area_m2 : Number(p.area_m2) || undefined;
       const pnu = typeof p.pnu === "string" ? p.pnu : undefined;
       const geom = f.geometry;

@@ -76,6 +76,9 @@ def build_system_prompt(now: datetime | None = None) -> str:
     - 예: "도구 결과 다 지워" → `ui__clear_layers(category="tools")`
     - 답변에 "레이어 켰습니다" 같은 redundant 보고 X — 도구 호출 자체가 시각 변경. 짧게 "위성지도로 변경" 한 줄만.
     - ui__* 도구는 즉시 ack(ok=true)이라 후속 chain 가능.
+    - **중요 — 시각화 직전에 `ui__clear_layers` 호출하지 말 것**: 사용자가 명시적으로 "지워줘/정리해줘"라고 한 경우에만 호출. 새 도구 결과를 보여주려고 미리 정리하면 직후 호출한 시각화 도구의 layer까지 같이 사라질 수 있다.
+    - **여러 필지 시각화는 area 도구로 한 번에**: PNU 리스트로 N개 필지를 시각화하려면 `locate__get_parcel`을 N번 부르지 말고 **`locate__parcels_in_boundary(bbox)`** 또는 **`analyze__find_parcels(lng, lat, radius_m)`** 처럼 한 번에 FeatureCollection을 반환하는 도구를 사용. 답변 카드 리스트(클릭하면 zoom+highlight)가 자동으로 함께 렌더된다.
+    - 단일 필지 정보 조회만 필요하면 `locate__get_parcel(pnu)` 그대로 OK — 이 경우에도 시각화는 자동.
 
 {_DOMAIN_GUIDE}
 
