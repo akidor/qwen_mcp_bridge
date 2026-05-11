@@ -8,6 +8,14 @@ import type { SceneData } from "../three/scene-types";
 
 type ChatRole = "user" | "assistant" | "system";
 
+export type ParcelCard = {
+  address: string;
+  pnu?: string;
+  areaM2?: number;
+  geometry: any;
+  bbox?: [number, number, number, number];
+};
+
 type ToolEvent =
   | { kind: "start"; name: string; argsPreview: string }
   | {
@@ -23,6 +31,7 @@ type ToolEvent =
         typology: string;
         metrics: { floors: number; height: number; gfa: number; far: number; bcr: number };
       }>;
+      parcelCards?: ParcelCard[];
     };
 
 type ChatMessage = {
@@ -43,9 +52,10 @@ interface ChatTabProps {
   mode?: "desktop" | "mobile";
   onUiAction?: (action: string, params: any) => void;
   wmsLeafLabels?: string[];
+  onParcelFocus?: (card: ParcelCard) => void;
 }
 
-export default function ChatTab({ model, systemPrompt, disableThinking, onLastChunk, onToolResult, drawnFeatures = [], mode = "desktop", onUiAction, wmsLeafLabels = [] }: ChatTabProps) {
+export default function ChatTab({ model, systemPrompt, disableThinking, onLastChunk, onToolResult, drawnFeatures = [], mode = "desktop", onUiAction, wmsLeafLabels = [], onParcelFocus }: ChatTabProps) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: "assistant", content: "준비됨. 자연어로 질의하거나 `/도움말`로 슬래시 명령을 확인하세요." },
@@ -215,6 +225,7 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
                 bcr: c.metrics?.bcr ?? 0,
               },
             }));
+            const parcelCards = parseParcelCards(data.name, resultText);
             appendToolEvent(setMessages, assistantIdx, {
               kind: "end",
               name: data.name,
@@ -224,6 +235,7 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
               resultText,
               sceneData: scene?.sceneData,
               sceneCandidates,
+              parcelCards,
             });
             onToolResult?.(data.name, resultText);
             continue;
@@ -562,13 +574,46 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
                 );
               })() : null}
               {message.role === "assistant" ? (
-                <div className="message-content markdown-body">
-                  {message.content ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{redactPnu(message.content, prevUserAsksPnu(messages, index))}</ReactMarkdown>
-                  ) : isSending && index === messages.length - 1 ? (
-                    <span className="dots">…</span>
-                  ) : null}
-                </div>
+                <>
+                  <div className="message-content markdown-body">
+                    {message.content ? (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{redactPnu(message.content, prevUserAsksPnu(messages, index))}</ReactMarkdown>
+                    ) : isSending && index === messages.length - 1 ? (
+                      <span className="dots">…</span>
+                    ) : null}
+                  </div>
+                  {(() => {
+                    const cards = collectParcelCards(message.toolEvents);
+                    if (!cards.length) return null;
+                    return (
+                      <ul className="parcel-card-list">
+                        {cards.map((c, ci) => (
+                          <li
+                            key={`${c.pnu ?? c.address}-${ci}`}
+                            className="parcel-card"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => onParcelFocus?.(c)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                onParcelFocus?.(c);
+                              }
+                            }}
+                            title="지도에서 보기"
+                          >
+                            <span className="parcel-card-addr">📍 {c.address}</span>
+                            {typeof c.areaM2 === "number" && c.areaM2 > 0 ? (
+                              <span className="parcel-card-area">
+                                {Math.round(c.areaM2)}㎡ ({Math.round(c.areaM2 / 3.3058)}평)
+                              </span>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  })()}
+                </>
               ) : (
                 <p className="message-content">{message.content}</p>
               )}
@@ -680,6 +725,22 @@ function prettyToolName(name: string): string {
   return name;
 }
 
+function collectParcelCards(toolEvents: ToolEvent[] | undefined): ParcelCard[] {
+  if (!toolEvents) return [];
+  const seen = new Set<string>();
+  const out: ParcelCard[] = [];
+  for (const ev of toolEvents) {
+    if (ev.kind !== "end" || !ev.parcelCards) continue;
+    for (const c of ev.parcelCards) {
+      const key = c.pnu || c.address;
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(c);
+    }
+  }
+  return out;
+}
+
 function countToolGroups(toolEvents: ToolEvent[] | undefined): { tools: number; charts: number; masses: number } {
   if (!toolEvents) return { tools: 0, charts: 0, masses: 0 };
   let tools = 0, charts = 0, masses = 0;
@@ -690,6 +751,58 @@ function countToolGroups(toolEvents: ToolEvent[] | undefined): { tools: number; 
     if (ev.sceneCandidates && ev.sceneCandidates.length > 0) masses += ev.sceneCandidates.length;
   }
   return { tools, charts, masses };
+}
+
+function bboxOfGeom(geom: any): [number, number, number, number] | undefined {
+  if (!geom) return undefined;
+  let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+  function visit(coords: any) {
+    if (typeof coords?.[0] === "number" && typeof coords?.[1] === "number") {
+      const [x, y] = coords;
+      if (x < minLng) minLng = x;
+      if (y < minLat) minLat = y;
+      if (x > maxLng) maxLng = x;
+      if (y > maxLat) maxLat = y;
+      return;
+    }
+    if (Array.isArray(coords)) for (const c of coords) visit(c);
+  }
+  visit(geom.coordinates);
+  if (!isFinite(minLng)) return undefined;
+  return [minLng, minLat, maxLng, maxLat];
+}
+
+function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | undefined {
+  if (toolName !== "locate__parcels_in_boundary" && toolName !== "analyze__find_parcels") return undefined;
+  if (!resultText) return undefined;
+  try {
+    const parsed = JSON.parse(resultText);
+    const fc =
+      parsed?.type === "FeatureCollection"
+        ? parsed
+        : Array.isArray(parsed?.features)
+        ? { type: "FeatureCollection", features: parsed.features }
+        : null;
+    if (!fc?.features?.length) return undefined;
+    const cards: ParcelCard[] = [];
+    for (const f of fc.features) {
+      const p = f?.properties ?? {};
+      const juso = (p.address ?? p.juso ?? "").toString().trim();
+      const jibun = (p.jibun ?? "").toString().trim();
+      let address = "";
+      if (jibun && juso && !juso.endsWith(jibun)) address = `${juso} ${jibun}`;
+      else address = juso || jibun;
+      address = address || "(주소 미상)";
+      const areaM2 = typeof p.area_m2 === "number" ? p.area_m2 : Number(p.area_m2) || undefined;
+      const pnu = typeof p.pnu === "string" ? p.pnu : undefined;
+      const geom = f.geometry;
+      if (!geom) continue;
+      cards.push({ address, pnu, areaM2, geometry: geom, bbox: bboxOfGeom(geom) });
+    }
+    return cards.length > 0 ? cards : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function parseSceneData(toolName: string, resultText: string): { sceneData: SceneData; candidates: any[] } | null {

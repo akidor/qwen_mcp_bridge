@@ -620,6 +620,75 @@ export function addMassExtrusion(
   return { added: true, bbox: [minLng, minLat, maxLng, maxLat] };
 }
 
+// === 개별 필지 focus highlight (chat 카드 클릭) ===
+const PARCEL_FOCUS_SRC = "parcel-focus-src";
+const PARCEL_FOCUS_FILL = "parcel-focus-fill";
+const PARCEL_FOCUS_LINE = "parcel-focus-line";
+let _focusPopup: maplibregl.Popup | null = null;
+
+/** 채팅 parcel-card 클릭 → bbox로 flyTo + 강조 outline + 주소 popup. 이전 focus는 교체. */
+export function focusParcel(
+  map: any,
+  feature: { geometry: any; bbox?: [number, number, number, number]; address?: string; areaM2?: number },
+): void {
+  if (!map || !feature?.geometry) return;
+  // 기존 focus layer 정리
+  try { if (map.getLayer(PARCEL_FOCUS_LINE)) map.removeLayer(PARCEL_FOCUS_LINE); } catch {}
+  try { if (map.getLayer(PARCEL_FOCUS_FILL)) map.removeLayer(PARCEL_FOCUS_FILL); } catch {}
+  try { if (map.getSource(PARCEL_FOCUS_SRC)) map.removeSource(PARCEL_FOCUS_SRC); } catch {}
+  try {
+    map.addSource(PARCEL_FOCUS_SRC, {
+      type: "geojson",
+      data: { type: "Feature", properties: {}, geometry: feature.geometry },
+    });
+    map.addLayer({
+      id: PARCEL_FOCUS_FILL,
+      type: "fill",
+      source: PARCEL_FOCUS_SRC,
+      paint: { "fill-color": "#f97316", "fill-opacity": 0.25 },
+    });
+    map.addLayer({
+      id: PARCEL_FOCUS_LINE,
+      type: "line",
+      source: PARCEL_FOCUS_SRC,
+      paint: { "line-color": "#ea580c", "line-width": 2.5 },
+    });
+  } catch (e) {
+    console.warn("[focusParcel] layer add failed:", e);
+  }
+  // bbox로 fit. bbox 없으면 geometry에서 계산.
+  let bbox = feature.bbox;
+  if (!bbox && feature.geometry?.type === "Polygon") {
+    bbox = bboxOfPolygon(feature.geometry.coordinates);
+  }
+  if (bbox) {
+    try {
+      map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 80, maxZoom: 18, duration: 700 });
+    } catch (e) {
+      console.warn("[focusParcel] fitBounds failed:", e);
+    }
+  }
+  // 주소 popup
+  try {
+    if (_focusPopup) _focusPopup.remove();
+    if (feature.address && bbox) {
+      const cx = (bbox[0] + bbox[2]) / 2;
+      const cy = (bbox[1] + bbox[3]) / 2;
+      const py = feature.areaM2 && feature.areaM2 > 0
+        ? ` · ${Math.round(feature.areaM2)}㎡ (${Math.round(feature.areaM2 / 3.3058)}평)`
+        : "";
+      _focusPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, offset: 8 })
+        .setLngLat([cx, cy])
+        .setText(`${feature.address}${py}`)
+        .addTo(map);
+      const el = _focusPopup.getElement();
+      el?.classList.add("parcel-popup-wrap");
+    }
+  } catch (e) {
+    console.warn("[focusParcel] popup failed:", e);
+  }
+}
+
 /** 도구 결과로 추가된 모든 layer 정리 (clear_layers tools/all 용). */
 export function clearAllToolLayers(map: any): number {
   if (!map?.getStyle) return 0;
@@ -637,7 +706,8 @@ export function clearAllToolLayers(map: any): number {
      l.id.startsWith("route-") ||
      l.id.startsWith("buffer-") ||
      l.id.startsWith("find-parcels") ||
-     l.id.startsWith("mass-"))
+     l.id.startsWith("mass-") ||
+     l.id.startsWith("parcel-focus-"))
   );
   // -fill / -line / -label 등 sub-layer가 같은 source를 공유 — source 제거는 dedup 후 한 번만.
   const sourcesToRemove = new Set<string>();

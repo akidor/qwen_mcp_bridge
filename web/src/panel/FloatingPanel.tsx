@@ -31,6 +31,7 @@ interface FloatingPanelProps {
   drawnFeatures: { id: string; geometry: GeoJSON.Geometry; label: string; ts?: number }[];
   onUiAction?: (action: string, params: any) => void;
   wmsLeafLabels?: string[];
+  onParcelFocus?: (card: any) => void;
 }
 
 export const DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B";
@@ -45,6 +46,7 @@ export default function FloatingPanel({
   drawnFeatures,
   onUiAction,
   wmsLeafLabels = [],
+  onParcelFocus,
 }: FloatingPanelProps) {
   const [activeTab, setActiveTab] = useState<TabName>("chat");
   const [collapsed, setCollapsed] = useState(false);
@@ -111,6 +113,7 @@ export default function FloatingPanel({
             drawnFeatures={drawnFeatures}
             onUiAction={onUiAction}
             wmsLeafLabels={wmsLeafLabels}
+            onParcelFocus={onParcelFocus}
           />
         </div>
         <div className={`tab-pane ${activeTab === "settings" ? "" : "hidden"}`}>

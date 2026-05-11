@@ -26,7 +26,9 @@ import {
   removeWmsLayer,
   hasWmsLayer,
   setWmsOpacity as applyWmsOpacity,
+  focusParcel,
 } from "./map/auto_layer";
+import type { ParcelCard } from "./panel/ChatTab";
 
 interface ToolHistoryEntry {
   name: string;
@@ -239,6 +241,16 @@ export default function App() {
     return out;
   }
 
+  function handleParcelFocus(card: ParcelCard) {
+    if (!mapInstance) return;
+    focusParcel(mapInstance, {
+      geometry: card.geometry,
+      bbox: card.bbox,
+      address: card.address,
+      areaM2: card.areaM2,
+    });
+  }
+
   function handleUiAction(action: string, params: any) {
     switch (action) {
       case "ui__set_basemap": {
@@ -368,6 +380,7 @@ export default function App() {
               disableThinking={mobileDisableThinking}
               onLastChunk={setMobileLastChunk}
               onUiAction={handleUiAction}
+              onParcelFocus={handleParcelFocus}
               wmsLeafLabels={collectWmsLeafLabels(wmsTree)}
               onToolResult={(toolName, resultText) => {
                 if (!mapInstance) {
@@ -421,6 +434,7 @@ export default function App() {
         setLayerVisibility={setLayerVisibility}
         drawnFeatures={drawnFeatures}
         onUiAction={handleUiAction}
+        onParcelFocus={handleParcelFocus}
         wmsLeafLabels={collectWmsLeafLabels(wmsTree)}
       />
       <LayerPanel
