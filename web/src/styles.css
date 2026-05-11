@@ -936,7 +936,18 @@ body {
 .parcel-card-area {
   color: var(--fg-muted, #6b7280);
   font-variant-numeric: tabular-nums;
+}
+.parcel-card-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
   flex: 0 0 auto;
+  font-size: 11px;
+}
+.parcel-card-build {
+  color: var(--fg-muted, #6b7280);
+  font-size: 10px;
 }
 
 /* === P14 Mobile UI === */

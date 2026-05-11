@@ -12,6 +12,8 @@ export type ParcelCard = {
   address: string;
   pnu?: string;
   areaM2?: number;
+  jimok?: string;
+  buildability?: string;  // "✅ 대(건축 가능)" 등
   geometry: any;
   bbox?: [number, number, number, number];
 };
@@ -603,11 +605,16 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
                             title="지도에서 보기"
                           >
                             <span className="parcel-card-addr">📍 {c.address}</span>
-                            {typeof c.areaM2 === "number" && c.areaM2 > 0 ? (
-                              <span className="parcel-card-area">
-                                {Math.round(c.areaM2)}㎡ ({Math.round(c.areaM2 / 3.3058)}평)
-                              </span>
-                            ) : null}
+                            <span className="parcel-card-meta">
+                              {typeof c.areaM2 === "number" && c.areaM2 > 0 ? (
+                                <span className="parcel-card-area">
+                                  {Math.round(c.areaM2)}㎡ ({Math.round(c.areaM2 / 3.3058)}평)
+                                </span>
+                              ) : null}
+                              {c.buildability ? (
+                                <span className="parcel-card-build">{c.buildability}</span>
+                              ) : null}
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -785,14 +792,15 @@ function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | 
     const raw = JSON.parse(resultText);
     const parsed = raw && raw.ok === true && raw.result ? raw.result : raw;
 
-    // 단일 필지 — locate__get_parcel: { pnu, address, jibun, area_m2, geometry }
+    // 단일 필지 — locate__get_parcel: { pnu, address, jibun, area_m2, jimok, geometry }
     if (toolName === "locate__get_parcel" || toolName === "locate__parcels_union") {
       const geom = parsed?.geometry;
       if (!geom || typeof geom !== "object") return undefined;
       const address = composeAddr(parsed);
       const areaM2 = typeof parsed?.area_m2 === "number" ? parsed.area_m2 : Number(parsed?.area_m2) || undefined;
       const pnu = typeof parsed?.pnu === "string" ? parsed.pnu : undefined;
-      return [{ address, pnu, areaM2, geometry: geom, bbox: bboxOfGeom(geom) }];
+      const jimok = typeof parsed?.jimok === "string" ? parsed.jimok : undefined;
+      return [{ address, pnu, areaM2, jimok, geometry: geom, bbox: bboxOfGeom(geom) }];
     }
 
     // 다수 필지 — FeatureCollection
@@ -810,9 +818,11 @@ function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | 
       const address = composeAddr(p);
       const areaM2 = typeof p.area_m2 === "number" ? p.area_m2 : Number(p.area_m2) || undefined;
       const pnu = typeof p.pnu === "string" ? p.pnu : undefined;
+      const jimok = typeof p.jimok === "string" ? p.jimok : undefined;
+      const buildability = typeof p.buildability === "string" ? p.buildability : undefined;
       const geom = f.geometry;
       if (!geom) continue;
-      cards.push({ address, pnu, areaM2, geometry: geom, bbox: bboxOfGeom(geom) });
+      cards.push({ address, pnu, areaM2, jimok, buildability, geometry: geom, bbox: bboxOfGeom(geom) });
     }
     return cards.length > 0 ? cards : undefined;
   } catch {
