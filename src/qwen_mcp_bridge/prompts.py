@@ -46,6 +46,7 @@ def build_system_prompt(now: datetime | None = None) -> str:
     - **기존 건축물 조회 vs 신축 후보 필지 탐색**: "다세대주택 리스트/근처 다세대주택"처럼 신축·건축 의도가 없으면 **기존 건축물 조회**다. `analyze__find_parcels`는 주변 후보 풀로만 쓰고, 후보 PNU를 `locate__get_parcel`로 확인해 `building`/`building_floors`/`land_use` raw에 다세대·다가구·공동주택이 확인된 항목만 답한다. "신축/건축/개발/부지/필지"가 명시된 경우만 **신축 후보 필지 탐색**으로 보고 규칙 17을 적용한다.
 13. **좌표 + 반경으로 필지 찾기**:
     - 시설명·좌표에서 시작해 주변 필지를 찾을 땐 `analyze__find_parcels(lng, lat, radius_m, area_min_m2?, area_max_m2?)` 한 번에 호출. `make_buffer` + `parcels_in_boundary` 분리 호출 X.
+    - **"기존 다세대주택 / 다가구 / 공동주택" 같이 기존 건축물 조회 의도가 명확하면** `analyze__find_parcels` 대신 **`analyze__find_existing_buildings(lng, lat, radius_m, use_keywords?)`** 한 번으로 끝낼 것. 이 도구는 backend에서 각 필지의 `building.use`를 직접 매칭해 confirmed 항목만 반환하며 features에 `state="confirmed_existing_building"`이 박혀 옴.
     - 평수 → m² 변환은 사용자가 안 했어도 알아서 (1평 ≈ 3.31㎡, 예: 100평 ≈ 330㎡). 면적 ±15% 정도 여유 두고 area_min_m2/area_max_m2 설정.
     - 건물 유무(빈땅) 필터는 현재 미지원 — 사용자에게 "P16 신설 예정"으로 안내.
     - 응답 필지 수가 0이면 hint 따라 radius_m 또는 면적 범위 확장 제안.

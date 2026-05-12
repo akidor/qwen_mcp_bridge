@@ -697,6 +697,8 @@ const TOOL_PRETTY: Record<string, string> = {
   "reach__poi_in_radius": "🏪 반경 POI",
   // analyze
   "analyze__find_parcels": "🔍 필지 찾기",
+  "analyze__find_existing_buildings": "🏘️ 기존 건축물",
+  "analyze__evaluate_buildability": "🧮 신축 평가",
   "analyze__parcel_aggregation": "📊 필지 집계",
   // simulate
   "simulate__shadow_analysis": "☀️ 그림자",
@@ -880,7 +882,13 @@ function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | 
     }
 
     // 다수 필지 — FeatureCollection
-    if (toolName !== "locate__parcels_in_boundary" && toolName !== "analyze__find_parcels") return undefined;
+    if (
+      toolName !== "locate__parcels_in_boundary" &&
+      toolName !== "analyze__find_parcels" &&
+      toolName !== "analyze__find_existing_buildings"
+    ) {
+      return undefined;
+    }
     const fc =
       parsed?.type === "FeatureCollection"
         ? parsed
@@ -896,13 +904,18 @@ function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | 
       const pnu = typeof p.pnu === "string" ? p.pnu : undefined;
       const jimok = typeof p.jimok === "string" ? p.jimok : undefined;
       const buildability = typeof p.buildability === "string" ? p.buildability : undefined;
-      const inferred = inferState(jimok);
+      // backend가 보낸 state·state_reason 우선 — find_existing_buildings, evaluate 결과 등.
+      const backendState = typeof p.state === "string" ? (p.state as ParcelState) : undefined;
+      const backendReason = Array.isArray(p.state_reason)
+        ? (p.state_reason as any[]).filter((s) => typeof s === "string")
+        : undefined;
+      const inferred = backendState ? null : inferState(jimok);
       const geom = f.geometry;
       if (!geom) continue;
       cards.push({
         address, pnu, areaM2, jimok, buildability,
-        state: inferred.state,
-        stateReason: inferred.reason,
+        state: backendState ?? inferred?.state,
+        stateReason: backendReason ?? inferred?.reason,
         geometry: geom,
         bbox: bboxOfGeom(geom),
       });

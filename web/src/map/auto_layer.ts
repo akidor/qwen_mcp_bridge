@@ -758,10 +758,12 @@ export function applyToolResult(map: any, toolName: string, resultText: string):
       });
     }
   }
-  // locate__parcels_in_boundary / analyze__find_parcels — FeatureCollection 또는 {features: [...]}
+  // locate__parcels_in_boundary / analyze__find_parcels / analyze__find_existing_buildings
+  // — FeatureCollection 또는 {features: [...]}
   if (
     toolName === "locate__parcels_in_boundary" ||
-    toolName === "analyze__find_parcels"
+    toolName === "analyze__find_parcels" ||
+    toolName === "analyze__find_existing_buildings"
   ) {
     const fc =
       parsed?.type === "FeatureCollection"
@@ -770,7 +772,13 @@ export function applyToolResult(map: any, toolName: string, resultText: string):
         ? { type: "FeatureCollection", features: parsed.features }
         : null;
     if (fc && fc.features && fc.features.length > 0) {
-      const id = uniqueId(toolName === "analyze__find_parcels" ? "find-parcels" : "parcels-boundary");
+      const idPrefix =
+        toolName === "analyze__find_existing_buildings"
+          ? "find-existing"
+          : toolName === "analyze__find_parcels"
+          ? "find-parcels"
+          : "parcels-boundary";
+      const id = uniqueId(idPrefix);
       const sourceId = `${id}-src`;
       map.addSource(sourceId, { type: "geojson", data: fc });
       map.addLayer({
@@ -1157,6 +1165,7 @@ export function clearAllToolLayers(map: any): number {
      l.id.startsWith("route-") ||
      l.id.startsWith("buffer-") ||
      l.id.startsWith("find-parcels") ||
+     l.id.startsWith("find-existing") ||
      l.id.startsWith("mass-") ||
      l.id.startsWith("parcel-focus-"))
   );
