@@ -900,27 +900,43 @@ input, textarea, button, select {
   display: block;
 }
 
-/* === Parcel cards (도구 결과에서 추출한 클릭형 필지 리스트) === */
+/* === Parcel cards (도구 결과에서 추출한 클릭형 필지 리스트, 가로 carousel) === */
 .parcel-card-list {
   list-style: none;
-  margin: 8px 0 4px;
-  padding: 0;
+  margin: 8px -4px 4px;
+  padding: 2px 4px 8px;
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--border) 80%, transparent) transparent;
+}
+.parcel-card-list::-webkit-scrollbar { height: 6px; }
+.parcel-card-list::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 999px;
+}
+.parcel-card-list::-webkit-scrollbar-track { background: transparent; }
+.parcel-card {
+  flex: 0 0 min(78%, 260px);
+  scroll-snap-align: start;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
   gap: 6px;
-}
-.parcel-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 12px;
+  padding: 10px 12px;
   background: var(--bg, #fafafa);
   border: 1px solid var(--border, #e5e7eb);
   border-radius: 10px;
   cursor: pointer;
   font-size: 12px;
   transition: background 0.15s, border-color 0.15s, transform 0.05s;
+  min-width: 0;
 }
 .parcel-card:hover {
   border-color: var(--accent, #3b82f6);
@@ -930,10 +946,8 @@ input, textarea, button, select {
   transform: scale(0.99);
 }
 .parcel-card-addr {
-  font-weight: 500;
+  font-weight: 600;
   color: var(--fg, #111);
-  flex: 1;
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -944,15 +958,17 @@ input, textarea, button, select {
 }
 .parcel-card-meta {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
   font-size: 11px;
+  flex-wrap: wrap;
 }
 .parcel-card-build {
   color: var(--fg-muted, #6b7280);
-  font-size: 10px;
+  font-size: 10.5px;
+  white-space: nowrap;
 }
 
 /* === P14 Mobile UI === */
