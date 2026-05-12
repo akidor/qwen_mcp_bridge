@@ -40,10 +40,15 @@ html, body, #root { height: 100%; margin: 0; }
 body {
   background: var(--bg);
   color: var(--fg);
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", sans-serif;
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "ss01", "tnum";
+}
+input, textarea, button, select {
+  font-family: inherit;
 }
 
 /* === Floating panel === */
@@ -1307,7 +1312,7 @@ body {
   font-size: 12px;
   line-height: 1.5;
   color: var(--fg);
-  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-family: inherit;
   white-space: normal;
   overflow-wrap: anywhere;
 }
