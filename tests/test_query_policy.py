@@ -12,7 +12,8 @@ def test_routing_hint_treats_multifamily_list_as_existing_building_search():
     assert "anchor_text=양재동 344-7" in hint
     assert "locate__search_facility" in hint
     assert "금지" in hint
-    assert "locate__search_address -> locate__get_parcel -> analyze__find_parcels -> locate__get_parcel" in hint
+    assert "analyze__find_existing_buildings" in hint
+    assert "use_keywords=[다세대주택,다가구주택,공동주택,연립주택]" in hint
     assert "radius_m=300" in hint
     assert "visual_suppress=intermediate_parcel_candidates" in hint
     assert "existing_use=다세대주택" in hint

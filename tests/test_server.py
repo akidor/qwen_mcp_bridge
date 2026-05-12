@@ -116,7 +116,7 @@ def test_chat_completions_injects_query_routing_hint(client):
     assert b"anchor_type=address" in sent
     assert "anchor_text=양재동 344-7번지".encode() in sent
     assert b"locate__search_facility" in sent
-    assert b"locate__search_address -> locate__get_parcel -> analyze__find_parcels" in sent
+    assert b"locate__search_address -> locate__get_parcel -> analyze__find_existing_buildings" in sent
 
 
 def test_chat_completions_rejects_empty_messages(client):
