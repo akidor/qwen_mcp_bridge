@@ -248,6 +248,8 @@ export default function App() {
       bbox: card.bbox,
       address: card.address,
       areaM2: card.areaM2,
+      jimok: card.jimok,
+      pnu: card.pnu,
     });
   }
 
