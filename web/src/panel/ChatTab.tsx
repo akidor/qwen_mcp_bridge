@@ -837,6 +837,29 @@ function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | 
     const raw = JSON.parse(resultText);
     const parsed = raw && raw.ok === true && raw.result ? raw.result : raw;
 
+    // 평가 도구 — analyze__evaluate_buildability: backend가 state·state_reason까지 결정.
+    if (toolName === "analyze__evaluate_buildability") {
+      const address = composeAddr(parsed);
+      const areaM2 = typeof parsed?.area_m2 === "number" ? parsed.area_m2 : Number(parsed?.area_m2) || undefined;
+      const pnu = typeof parsed?.pnu === "string" ? parsed.pnu : undefined;
+      const jimok = typeof parsed?.jimok === "string" ? parsed.jimok : undefined;
+      const stateVal = typeof parsed?.state === "string" ? (parsed.state as ParcelState) : undefined;
+      const reasons = Array.isArray(parsed?.state_reason)
+        ? (parsed.state_reason as any[]).filter((s) => typeof s === "string")
+        : [];
+      // evaluate_buildability는 geometry를 반환하지 않음 → 빈 placeholder. 시각화는 별도.
+      return [{
+        address,
+        pnu,
+        areaM2,
+        jimok,
+        buildability: buildabilityLabel(jimok),
+        state: stateVal,
+        stateReason: reasons,
+        geometry: { type: "Point", coordinates: [0, 0] },
+      }];
+    }
+
     // 단일 필지 — locate__get_parcel: { pnu, address, jibun, area_m2, jimok, geometry }
     if (toolName === "locate__get_parcel" || toolName === "locate__parcels_union") {
       const geom = parsed?.geometry;
