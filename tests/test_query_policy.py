@@ -1,18 +1,37 @@
 from qwen_mcp_bridge.query_policy import build_routing_hint
 
 
-def test_routing_hint_keeps_jibun_nearby_query_on_address_anchor():
+def test_routing_hint_treats_multifamily_list_as_existing_building_search():
     hint = build_routing_hint([
-        {"role": "user", "content": "양재동 344-7번지 근처에 다세대주택 리스트"},
+        {"role": "user", "content": "양재동 344-7근처 다세대주택"},
     ])
 
     assert hint is not None
+    assert "bucket=기존 건축물 조회" in hint
     assert "anchor_type=address" in hint
-    assert "anchor_text=양재동 344-7번지" in hint
+    assert "anchor_text=양재동 344-7" in hint
     assert "locate__search_facility" in hint
     assert "금지" in hint
-    assert "locate__search_address -> locate__get_parcel -> analyze__find_parcels" in hint
+    assert "locate__search_address -> locate__get_parcel -> analyze__find_parcels -> locate__get_parcel" in hint
     assert "radius_m=300" in hint
+    assert "visual_suppress=intermediate_parcel_candidates" in hint
+    assert "existing_use=다세대주택" in hint
+    assert "post_filter=건축 의도 있음" not in hint
+    assert "건축 가능 후보" not in hint
+
+
+def test_routing_hint_treats_explicit_multifamily_new_build_as_buildable_parcel_search():
+    hint = build_routing_hint([
+        {"role": "user", "content": "양재동 344-7번지 근처 다세대주택 신축 후보 필지 찾아줘"},
+    ])
+
+    assert hint is not None
+    assert "bucket=신축 후보 필지 탐색" in hint
+    assert "anchor_type=address" in hint
+    assert "anchor_text=양재동 344-7번지" in hint
+    assert "locate__search_address -> locate__get_parcel -> analyze__find_parcels" in hint
+    assert "post_filter=건축 의도 있음" in hint
+    assert "answer_guard=용도지역만으로 건축 가능 단정 금지" in hint
 
 
 def test_routing_hint_uses_facility_anchor_for_station_nearby_query():

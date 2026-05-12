@@ -22,7 +22,8 @@ _PYUNG_RE = re.compile(r"(?P<pyung>\d+(?:\.\d+)?)\s*평")
 _NEARBY_RE = re.compile(r"근처|주변|인근|반경|도보")
 _LIST_RE = re.compile(r"찾|리스트|목록|후보|모아|골라|추려|필지|땅|부지")
 _DISPLAY_RE = re.compile(r"위치|지도|보여|표시|가리켜|어딘지")
-_BUILD_INTENT_RE = re.compile(r"다세대|다가구|주택|신축|건축|개발|매수|부지|나대지")
+_MULTIFAMILY_RE = re.compile(r"다세대|다가구|공동주택|연립")
+_BUILD_CANDIDATE_RE = re.compile(r"신축|건축|개발|매수|부지|필지|나대지|땅|짓|지을|가능|후보지")
 _CURRENT_PARCEL_RE = re.compile(r"(?:이|현재|선택(?:한|된)?)\s*(?:필지|부지|땅)|여기")
 
 
@@ -94,9 +95,12 @@ def _routing_header() -> list[str]:
 
 
 def _address_nearby_hint(text: str, address: str) -> str:
+    if _is_existing_multifamily_search(text):
+        return _existing_multifamily_address_hint(text, address)
+
     lines = [
         *_routing_header(),
-        "bucket=조건 맞는 땅 찾아줘",
+        f"bucket={'신축 후보 필지 탐색' if _is_build_candidate_search(text) else '조건 맞는 땅 찾아줘'}",
         "anchor_type=address",
         f"anchor_text={address}",
         "locate__search_facility 금지: 지번/번지/도로명 주소가 명시됐으므로 역명·시설명으로 보정하지 말 것.",
@@ -105,8 +109,27 @@ def _address_nearby_hint(text: str, address: str) -> str:
         "radius_m=300",
     ]
     lines.extend(_area_lines(text))
-    if _BUILD_INTENT_RE.search(text):
-        lines.append("post_filter=건축 의도 있음; 지목·용도지역 기준으로 건축 가능 후보를 우선 추천")
+    if _is_build_candidate_search(text):
+        lines.append("post_filter=건축 의도 있음; 지목·용도지역·규제·접도 확인 전에는 1차 후보로만 표현")
+        lines.append("answer_guard=용도지역만으로 건축 가능 단정 금지")
+    return "\n".join(lines)
+
+
+def _existing_multifamily_address_hint(text: str, address: str) -> str:
+    lines = [
+        *_routing_header(),
+        "bucket=기존 건축물 조회",
+        "anchor_type=address",
+        f"anchor_text={address}",
+        "existing_use=다세대주택",
+        "locate__search_facility 금지: 지번/번지/도로명 주소가 명시됐으므로 역명·시설명으로 보정하지 말 것.",
+        "required_chain=locate__search_address -> locate__get_parcel -> analyze__find_parcels -> locate__get_parcel",
+        "find_parcels_origin=locate__get_parcel geometry 중심점 또는 bbox 중심",
+        "radius_m=300",
+        "visual_suppress=intermediate_parcel_candidates",
+        "answer_guard=building/building_floors/land_use raw에서 다세대·다가구·공동주택 확인된 항목만 기존 건축물 리스트로 답변",
+    ]
+    lines.extend(_area_lines(text))
     return "\n".join(lines)
 
 
@@ -133,17 +156,33 @@ def _address_anchor_hint(address: str) -> str:
 
 def _facility_nearby_hint(text: str, facility: str) -> str:
     radius = "300" if facility.endswith("역") else "500"
+    if _is_existing_multifamily_search(text):
+        lines = [
+            *_routing_header(),
+            "bucket=기존 건축물 조회",
+            "anchor_type=facility",
+            f"anchor_text={facility}",
+            "existing_use=다세대주택",
+            "required_chain=locate__search_facility -> analyze__find_parcels -> locate__get_parcel",
+            f"radius_m={radius}",
+            "visual_suppress=intermediate_parcel_candidates",
+            "answer_guard=building/building_floors/land_use raw에서 다세대·다가구·공동주택 확인된 항목만 기존 건축물 리스트로 답변",
+        ]
+        lines.extend(_area_lines(text))
+        return "\n".join(lines)
+
     lines = [
         *_routing_header(),
-        "bucket=조건 맞는 땅 찾아줘",
+        f"bucket={'신축 후보 필지 탐색' if _is_build_candidate_search(text) else '조건 맞는 땅 찾아줘'}",
         "anchor_type=facility",
         f"anchor_text={facility}",
         "required_chain=locate__search_facility -> analyze__find_parcels",
         f"radius_m={radius}",
     ]
     lines.extend(_area_lines(text))
-    if _BUILD_INTENT_RE.search(text):
-        lines.append("post_filter=건축 의도 있음; 지목·용도지역 기준으로 건축 가능 후보를 우선 추천")
+    if _is_build_candidate_search(text):
+        lines.append("post_filter=건축 의도 있음; 지목·용도지역·규제·접도 확인 전에는 1차 후보로만 표현")
+        lines.append("answer_guard=용도지역만으로 건축 가능 단정 금지")
     return "\n".join(lines)
 
 
@@ -178,3 +217,11 @@ def _area_lines(text: str) -> list[str]:
         f"area_min_m2={sqm * 0.85:.0f}",
         f"area_max_m2={sqm * 1.15:.0f}",
     ]
+
+
+def _is_existing_multifamily_search(text: str) -> bool:
+    return bool(_MULTIFAMILY_RE.search(text)) and not _is_build_candidate_search(text)
+
+
+def _is_build_candidate_search(text: str) -> bool:
+    return bool(_BUILD_CANDIDATE_RE.search(text))

@@ -233,7 +233,7 @@ async def test_buildable_candidate_stream_filters_when_user_message_has_build_in
 
     chunks: list[bytes] = []
     async for chunk in run_chat_streaming(
-        messages=[{"role": "user", "content": "양재동 344-7 주변 다세대주택 후보 찾아줘"}],
+        messages=[{"role": "user", "content": "양재동 344-7 주변 다세대주택 신축 후보 필지 찾아줘"}],
         pool=pool,
         vllm_base_url="http://fake-vllm/v1",
         vllm_api_key="x",
@@ -248,3 +248,57 @@ async def test_buildable_candidate_stream_filters_when_user_message_has_build_in
     visual = json.loads(events[0]["result_text"])
     assert [f["properties"]["pnu"] for f in visual["features"]] == ["site"]
     assert visual["visual_filter_applied"]["removed_jimok"] == {"도로": 1}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_existing_multifamily_search_suppresses_find_parcels_visual_result():
+    result_text = json.dumps({
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": []},
+                "properties": {"pnu": "road", "address": "양재동 349-9", "jimok": "도로"},
+            },
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": []},
+                "properties": {"pnu": "site", "address": "양재동 344-7", "jimok": "대지"},
+            },
+        ],
+    }, ensure_ascii=False)
+    pool = make_pool_mock_with_tool("analyze__find_parcels", result_text)
+
+    respx.post("http://fake-vllm/v1/chat/completions").mock(
+        side_effect=[
+            httpx.Response(200, text=(
+                'data: {"id":"x","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"analyze__find_parcels","arguments":"{\\"lng\\":127,\\"lat\\":37,\\"radius_m\\":300}"}}]},"finish_reason":null}]}\n\n'
+                'data: {"id":"x","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n\n'
+                'data: [DONE]\n\n'
+            )),
+            httpx.Response(200, text=(
+                'data: {"id":"y","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{"content":"확인된 기존 다세대주택만 정리합니다."},"finish_reason":null}]}\n\n'
+                'data: {"id":"y","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n'
+                'data: [DONE]\n\n'
+            )),
+        ]
+    )
+
+    chunks: list[bytes] = []
+    async for chunk in run_chat_streaming(
+        messages=[{"role": "user", "content": "양재동 344-7근처 다세대주택"}],
+        pool=pool,
+        vllm_base_url="http://fake-vllm/v1",
+        vllm_api_key="x",
+        model="fake-model",
+        max_iterations=5,
+    ):
+        chunks.append(chunk)
+
+    events = tool_call_end_events(chunks)
+
+    assert len(events) == 1
+    visual = json.loads(events[0]["result_text"])
+    assert visual["features"] == []
+    assert visual["total_before_visual_suppress"] == 2
+    assert visual["visual_suppressed"]["reason"] == "existing_building_search_intermediate_parcels"
