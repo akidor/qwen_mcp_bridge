@@ -3,14 +3,31 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from collections import Counter
 from typing import Any
 
 
 BUILDABLE_VISUAL_TOOLS = {"analyze__find_parcels", "locate__parcels_in_boundary"}
-NON_BUILDABLE_JIMOK = {"도", "천", "구", "유", "제", "수", "공", "체", "운", "광", "양", "묘", "사", "종"}
-DIFFICULT_JIMOK = {"전", "답", "과", "목", "임"}
-BUILDABLE_JIMOK = {"대", "잡"}
+NON_BUILDABLE_JIMOK = {
+    "도", "도로",
+    "천", "하천",
+    "구", "구거",
+    "유", "유지",
+    "제", "제방",
+    "수", "수도용지",
+    "공", "공원",
+    "체", "체육용지",
+    "운", "운동장",
+    "광", "광천지",
+    "양", "양어장",
+    "묘", "묘지",
+    "사", "사적지",
+    "종", "종교용지",
+}
+DIFFICULT_JIMOK = {"전", "답", "과", "과수원", "목", "목장용지", "임", "임야"}
+BUILDABLE_JIMOK = {"대", "대지", "잡", "잡종지"}
+BUILD_INTENT_RE = re.compile(r"다세대|다가구|주택|신축|건축|개발|매수|부지|나대지")
 RESTRICTED_ZONE_KEYWORDS = (
     "자연녹지지역",
     "보전녹지지역",
@@ -27,6 +44,8 @@ def should_filter_buildable_visual_result(tool_name: str, messages: list[dict[st
     for message in messages:
         content = message.get("content")
         if isinstance(content, str) and marker in content:
+            return True
+        if message.get("role") == "user" and isinstance(content, str) and BUILD_INTENT_RE.search(content):
             return True
     return False
 

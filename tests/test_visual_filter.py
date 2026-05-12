@@ -29,6 +29,34 @@ def test_filter_buildable_candidate_result_removes_non_buildable_jimok():
     assert filtered["visual_filter_applied"]["removed_jimok"] == {"도": 1}
 
 
+def test_filter_buildable_candidate_result_removes_full_jimok_names():
+    raw = json.dumps({
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": []},
+                "properties": {"pnu": "road", "address": "양재동 349-9", "jimok": "도로"},
+            },
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": []},
+                "properties": {"pnu": "river", "address": "양재동 349-3", "jimok": "하천"},
+            },
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": []},
+                "properties": {"pnu": "site", "address": "양재동 344-7", "jimok": "대지"},
+            },
+        ],
+    }, ensure_ascii=False)
+
+    filtered = json.loads(filter_buildable_candidate_result(raw))
+
+    assert [f["properties"]["pnu"] for f in filtered["features"]] == ["site"]
+    assert filtered["features"][0]["properties"]["buildability"] == "✅ 대지(건축 가능)"
+    assert filtered["visual_filter_applied"]["removed_jimok"] == {"도로": 1, "하천": 1}
+
+
 def test_filter_buildable_candidate_result_preserves_non_feature_json():
     raw = '{"items":[{"name":"양재역"}]}'
 

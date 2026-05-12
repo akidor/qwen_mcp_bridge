@@ -67,9 +67,12 @@ function appendSection(parent: HTMLElement, title: string): HTMLElement {
 }
 
 // === 지목 분류 — shared/jimok.py와 동일 ===
-const NON_BUILDABLE_JIMOK = new Set(["도","천","구","유","제","수","공","체","운","광","양","묘","사","종"]);
-const DIFFICULT_JIMOK = new Set(["전","답","과","목","임"]);
-const BUILDABLE_JIMOK = new Set(["대","잡"]);
+const NON_BUILDABLE_JIMOK = new Set([
+  "도","도로","천","하천","구","구거","유","유지","제","제방","수","수도용지",
+  "공","공원","체","체육용지","운","운동장","광","광천지","양","양어장","묘","묘지","사","사적지","종","종교용지",
+]);
+const DIFFICULT_JIMOK = new Set(["전","답","과","과수원","목","목장용지","임","임야"]);
+const BUILDABLE_JIMOK = new Set(["대","대지","잡","잡종지"]);
 function jimokTone(jimok: string): "ok" | "warn" | "bad" | "none" {
   const j = (jimok || "").trim();
   if (!j) return "none";
