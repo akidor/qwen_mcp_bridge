@@ -1488,6 +1488,125 @@ input, textarea, button, select {
   border-top: 1px dashed color-mix(in srgb, var(--border) 50%, transparent);
 }
 
+/* 행위제한 — zone block, count chip, chip cloud, details */
+.parcel-popup-action-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--border) 18%, transparent);
+  border-radius: 8px;
+}
+.parcel-popup-action-block + .parcel-popup-action-block {
+  margin-top: 6px;
+}
+.parcel-popup-action-zone {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--fg);
+}
+.parcel-popup-action-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.parcel-action-count-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid transparent;
+}
+.parcel-action-count-chip.ok {
+  background: color-mix(in srgb, #10b981 18%, transparent);
+  color: #047857;
+  border-color: color-mix(in srgb, #10b981 35%, transparent);
+}
+.parcel-action-count-chip.bad {
+  background: color-mix(in srgb, #ef4444 18%, transparent);
+  color: #b91c1c;
+  border-color: color-mix(in srgb, #ef4444 35%, transparent);
+}
+.parcel-popup-action-cloud-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted, #6b7280);
+  letter-spacing: 0.01em;
+  margin-bottom: 4px;
+}
+.parcel-popup-action-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.parcel-popup-action-chip {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  line-height: 1.6;
+  background: color-mix(in srgb, var(--fg-muted, #94a3b8) 14%, transparent);
+  color: var(--fg, #1f2937);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+.parcel-popup-action-chip.ok {
+  background: color-mix(in srgb, #10b981 10%, transparent);
+  color: #065f46;
+  border-color: color-mix(in srgb, #10b981 25%, transparent);
+}
+.parcel-popup-action-chip.bad {
+  background: color-mix(in srgb, #ef4444 10%, transparent);
+  color: #991b1b;
+  border-color: color-mix(in srgb, #ef4444 25%, transparent);
+}
+.parcel-popup-action-details {
+  border-top: 1px dashed color-mix(in srgb, var(--border) 50%, transparent);
+  padding-top: 6px;
+}
+.parcel-popup-action-details-summary {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--accent, #3b82f6);
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.parcel-popup-action-details-summary::-webkit-details-marker { display: none; }
+.parcel-popup-action-details-summary::before {
+  content: "▸";
+  display: inline-block;
+  transition: transform 0.15s;
+  font-size: 9px;
+}
+.parcel-popup-action-details[open] .parcel-popup-action-details-summary::before {
+  transform: rotate(90deg);
+}
+.parcel-popup-action-details-inner {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.parcel-popup-action-details-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.parcel-popup-action-details-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.parcel-popup-action-details-title.ok { color: #047857; }
+.parcel-popup-action-details-title.bad { color: #b91c1c; }
+
 /* Skeleton */
 .parcel-popup-skeleton {
   display: flex;

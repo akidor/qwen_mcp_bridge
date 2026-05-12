@@ -135,31 +135,28 @@ function buildPopupHeader(props: any, variant: "hover" | "detail"): HTMLElement 
   return header;
 }
 
-/** 토지이용·규제 — 기존 두 helper 결과를 하나의 섹션 bullet list로 통합. */
+/** 토지이용·규제 — plan은 bullet list, actions는 별도 카운트+chip+전체 details 섹션. */
 function appendCombinedRegulation(
   root: HTMLElement,
   plan: any,
   actions: any,
 ): boolean {
   const planRows = summarizeLandUsePlan(plan);
-  const actionRows = summarizeLandActions(actions);
-  if (!planRows.length && !actionRows.length) return false;
-  const section = appendSection(root, "📋 토지이용·규제");
-  const list = createNode("ul", "parcel-popup-bullets");
-  for (const row of planRows) {
-    const li = createNode("li", "parcel-popup-bullet");
-    li.appendChild(createNode("span", "parcel-popup-bullet-label", row.label));
-    li.appendChild(createNode("span", "parcel-popup-bullet-value", row.value));
-    list.appendChild(li);
+  let any = false;
+  if (planRows.length) {
+    const section = appendSection(root, "📋 토지이용계획");
+    const list = createNode("ul", "parcel-popup-bullets");
+    for (const row of planRows) {
+      const li = createNode("li", "parcel-popup-bullet");
+      li.appendChild(createNode("span", "parcel-popup-bullet-label", row.label));
+      li.appendChild(createNode("span", "parcel-popup-bullet-value", row.value));
+      list.appendChild(li);
+    }
+    section.appendChild(list);
+    any = true;
   }
-  for (const row of actionRows) {
-    const li = createNode("li", "parcel-popup-bullet");
-    li.appendChild(createNode("span", "parcel-popup-bullet-label", row.label));
-    li.appendChild(createNode("span", "parcel-popup-bullet-value", row.value));
-    list.appendChild(li);
-  }
-  section.appendChild(list);
-  return true;
+  if (appendLandActions(root, actions)) any = true;
+  return any;
 }
 
 function appendSkeleton(root: HTMLElement, lines: number = 3): HTMLElement {
@@ -251,26 +248,109 @@ function summarizeLandUsePlan(plan: any): Array<{ label: string; value: string }
   return rows;
 }
 
-function actionText(action: any): string {
-  const target = textOf(action?.usetarget);
-  const act = textOf(action?.action);
-  return [target, act].filter(Boolean).join(" ");
+type ActionsZoneSummary = {
+  zone: string;
+  possibleCount: number;
+  bannedCount: number;
+  allPossible: string[];
+  allBanned: string[];
+};
+
+/** backend의 landactions.{zone}.{가능|금지}는 list of {usetarget, action}.
+ *  usetarget이 단일 시설명일 수도, 콤마-구분 거대 문자열일 수도 있어 둘 다 평탄화. */
+function extractActionNames(items: any[]): string[] {
+  const names: string[] = [];
+  for (const it of items) {
+    const raw = textOf(it?.usetarget);
+    if (!raw) continue;
+    if (raw.includes(",")) {
+      for (const part of raw.split(/[,，]\s*/)) {
+        const p = part.trim();
+        if (p) names.push(p);
+      }
+    } else {
+      names.push(raw);
+    }
+  }
+  // dedup + 빈 string 제거
+  return Array.from(new Set(names)).filter(Boolean);
 }
 
-function summarizeLandActions(actions: any): Array<{ label: string; value: string }> {
+function parseLandActions(actions: any): ActionsZoneSummary[] {
   if (!actions || typeof actions !== "object") return [];
-  const rows: Array<{ label: string; value: string }> = [];
+  const out: ActionsZoneSummary[] = [];
   for (const [zone, grouped] of Object.entries(actions).slice(0, 4)) {
     const possible = Array.isArray((grouped as any)?.가능) ? (grouped as any).가능 : [];
     const banned = Array.isArray((grouped as any)?.금지) ? (grouped as any).금지 : [];
-    const examples = [
-      ...possible.map(actionText).filter(Boolean).slice(0, 2).map((v: string) => `가능: ${v}`),
-      ...banned.map(actionText).filter(Boolean).slice(0, 2).map((v: string) => `금지: ${v}`),
-    ];
-    const summary = `가능 ${possible.length.toLocaleString()}건 · 금지 ${banned.length.toLocaleString()}건`;
-    rows.push({ label: textOf(zone), value: examples.length ? `${summary}\n${examples.join("\n")}` : summary });
+    const allPossible = extractActionNames(possible);
+    const allBanned = extractActionNames(banned);
+    if (!allPossible.length && !allBanned.length) continue;
+    out.push({
+      zone: textOf(zone),
+      possibleCount: allPossible.length,
+      bannedCount: allBanned.length,
+      allPossible,
+      allBanned,
+    });
   }
-  return rows;
+  return out;
+}
+
+/** 행위제한 — zone별 카운트 chip + 주요 금지 8개 chip cloud + 전체 details. */
+function appendLandActions(root: HTMLElement, actions: any): boolean {
+  const summaries = parseLandActions(actions);
+  if (!summaries.length) return false;
+  const section = appendSection(root, "🚫 행위제한");
+  for (const s of summaries) {
+    const block = createNode("div", "parcel-popup-action-block");
+    if (s.zone) block.appendChild(createNode("div", "parcel-popup-action-zone", s.zone));
+    const counts = createNode("div", "parcel-popup-action-counts");
+    counts.appendChild(createNode("span", "parcel-action-count-chip ok", `🟢 가능 ${s.possibleCount.toLocaleString()}`));
+    counts.appendChild(createNode("span", "parcel-action-count-chip bad", `🔴 금지 ${s.bannedCount.toLocaleString()}`));
+    block.appendChild(counts);
+    if (s.allBanned.length > 0) {
+      const cloud = createNode("div", "parcel-popup-action-cloud");
+      cloud.appendChild(createNode("div", "parcel-popup-action-cloud-title", "주요 금지 시설"));
+      const chips = createNode("div", "parcel-popup-action-chip-row");
+      for (const name of s.allBanned.slice(0, 8)) {
+        chips.appendChild(createNode("span", "parcel-popup-action-chip bad", name));
+      }
+      cloud.appendChild(chips);
+      block.appendChild(cloud);
+    }
+    const total = s.possibleCount + s.bannedCount;
+    if (total > 8) {
+      const details = document.createElement("details");
+      details.className = "parcel-popup-action-details";
+      const summaryEl = createNode(
+        "summary",
+        "parcel-popup-action-details-summary",
+        `전체 ${total.toLocaleString()}건 보기`,
+      );
+      details.appendChild(summaryEl);
+      const innerWrap = createNode("div", "parcel-popup-action-details-inner");
+      if (s.allBanned.length) {
+        const noSec = createNode("div", "parcel-popup-action-details-section");
+        noSec.appendChild(createNode("div", "parcel-popup-action-details-title bad", `🔴 금지 ${s.bannedCount.toLocaleString()}`));
+        const noRow = createNode("div", "parcel-popup-action-chip-row");
+        for (const n of s.allBanned) noRow.appendChild(createNode("span", "parcel-popup-action-chip bad", n));
+        noSec.appendChild(noRow);
+        innerWrap.appendChild(noSec);
+      }
+      if (s.allPossible.length) {
+        const okSec = createNode("div", "parcel-popup-action-details-section");
+        okSec.appendChild(createNode("div", "parcel-popup-action-details-title ok", `🟢 가능 ${s.possibleCount.toLocaleString()}`));
+        const okRow = createNode("div", "parcel-popup-action-chip-row");
+        for (const n of s.allPossible) okRow.appendChild(createNode("span", "parcel-popup-action-chip ok", n));
+        okSec.appendChild(okRow);
+        innerWrap.appendChild(okSec);
+      }
+      details.appendChild(innerWrap);
+      block.appendChild(details);
+    }
+    section.appendChild(block);
+  }
+  return true;
 }
 
 function buildParcelDetailContent(
