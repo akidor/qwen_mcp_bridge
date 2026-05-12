@@ -21,3 +21,4 @@ web/vite.config.d.ts
 .env.local
 web/.env.local
 web/.env
+.superpowers/

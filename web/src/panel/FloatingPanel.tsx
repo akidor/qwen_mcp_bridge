@@ -4,6 +4,7 @@ import SettingsTab from "./SettingsTab";
 import DebugTab from "./DebugTab";
 import { BasemapKind } from "../map/basemaps";
 import { applyToolResult, fitToBbox } from "../map/auto_layer";
+import { getCurrentIntent, shouldRenderToolResult } from "../intent/intentStore";
 
 type TabName = "chat" | "settings" | "debug";
 
@@ -59,6 +60,11 @@ export default function FloatingPanel({
     const ts = Date.now();
     if (!map) {
       setToolHistory((cur) => [...cur, { name: toolName, ts, layerId: null, message: "map 미준비", resultText }]);
+      return;
+    }
+    // intent에 따라 일부 중간 결과는 지도에 깔지 않음 (existing_buildings의 find_parcels 등).
+    if (!shouldRenderToolResult(toolName, getCurrentIntent())) {
+      setToolHistory((cur) => [...cur, { name: toolName, ts, layerId: null, message: "intent-skip(중간 결과 시각화 억제)", resultText }]);
       return;
     }
     const r = applyToolResult(map, toolName, resultText);

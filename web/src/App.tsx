@@ -29,6 +29,7 @@ import {
   focusParcel,
 } from "./map/auto_layer";
 import type { ParcelCard } from "./panel/ChatTab";
+import { getCurrentIntent, shouldRenderToolResult } from "./intent/intentStore";
 
 interface ToolHistoryEntry {
   name: string;
@@ -389,6 +390,14 @@ export default function App() {
                   setToolHistory((cur) => [
                     ...cur,
                     { name: toolName, ts: Date.now(), layerId: null, message: "map 미준비", resultText },
+                  ]);
+                  return;
+                }
+                // 의도 컨텍스트에 따라 일부 중간 도구 결과는 지도에 깔지 않음 (existing_buildings의 find_parcels 등).
+                if (!shouldRenderToolResult(toolName, getCurrentIntent())) {
+                  setToolHistory((cur) => [
+                    ...cur,
+                    { name: toolName, ts: Date.now(), layerId: null, message: "intent-skip(중간 결과 시각화 억제)", resultText },
                   ]);
                   return;
                 }

@@ -202,6 +202,14 @@ async def run_chat_streaming(
     work = list(messages)
     tools = pool.list_openai_tools()
 
+    # 의도 라벨을 가장 먼저 발화 — frontend가 받아 시각화 분기에 사용.
+    try:
+        from qwen_mcp_bridge.intent import classify_intent
+        intent_label = classify_intent(messages)
+        yield _sse({"type": "intent", "label": intent_label})
+    except Exception as e:  # pragma: no cover — defensive, classify는 순수 함수
+        logger.warning("intent 분류 실패: %s", e)
+
     async with httpx.AsyncClient(timeout=request_timeout) as client:
         for iteration in range(max_iterations):
             sentinel: dict | None = None

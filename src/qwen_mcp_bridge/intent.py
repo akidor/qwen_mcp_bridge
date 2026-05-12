@@ -1,0 +1,95 @@
+"""사용자 발화 → 의도 라벨 분류.
+
+`query_policy.py`가 만들던 bucket 문자열을 1급 enum-like literal로 격상.
+시각화 분기·시나리오 테스트·SSE 메타 이벤트 모두 이 라벨을 1차 키로 쓴다.
+"""
+from __future__ import annotations
+
+import re
+from typing import Any, Literal
+
+from qwen_mcp_bridge.query_policy import (
+    _BUILD_CANDIDATE_RE,
+    _CURRENT_PARCEL_RE,
+    _DISPLAY_RE,
+    _LIST_RE,
+    _MULTIFAMILY_RE,
+    _NEARBY_RE,
+    _extract_address_anchor,
+    _extract_facility_anchor,
+    _last_user_text,
+)
+
+IntentLabel = Literal[
+    "locate_show",          # 위치/지도 표시
+    "existing_buildings",   # 주변 기존 건축물 조회 (다세대·다가구 등)
+    "new_build_candidates", # 신축 후보 필지 탐색
+    "parcel_detail",        # 단일 필지 상세 검토
+    "risk_check",           # 매수 전 리스크 체크
+    "nearby_context",       # 주변 입지·도달권·POI
+    "general",              # 위 어디에도 매핑되지 않는 일반 질의
+]
+
+ALL_INTENTS: tuple[IntentLabel, ...] = (
+    "locate_show",
+    "existing_buildings",
+    "new_build_candidates",
+    "parcel_detail",
+    "risk_check",
+    "nearby_context",
+    "general",
+)
+
+_RISK_RE = re.compile(r"리스크|위험|사도\s*돼|매수.*괜찮|살까|매입.*괜찮")
+_DETAIL_RE = re.compile(r"분석|상세|검토|가능해|가능한가|어떤\s*땅|이\s*땅|이\s*필지|이\s*부지")
+
+
+def classify_intent(messages: list[dict[str, Any]]) -> IntentLabel:
+    """최근 user 발화 1건을 의도 라벨 1개로 매핑.
+
+    우선순위:
+    1. risk_check (명시적 "사도 돼/리스크")
+    2. parcel_detail ("이 필지/이 땅" + 분석 의도)
+    3. address anchor 기준 분기 (nearby vs display)
+    4. facility anchor 기준 분기
+    5. fallback: general
+    """
+    text = _last_user_text(messages)
+    if not text:
+        return "general"
+
+    if _RISK_RE.search(text):
+        return "risk_check"
+
+    is_current_parcel = bool(_CURRENT_PARCEL_RE.search(text))
+    if is_current_parcel and _DETAIL_RE.search(text) and not _NEARBY_RE.search(text):
+        # "주변"이 있으면 nearby_context로 — parcel_detail은 단일 필지 자체 분석에 한정.
+        return "parcel_detail"
+
+    address = _extract_address_anchor(text)
+    if address:
+        if _NEARBY_RE.search(text):
+            if _BUILD_CANDIDATE_RE.search(text):
+                return "new_build_candidates"
+            if _MULTIFAMILY_RE.search(text):
+                return "existing_buildings"
+            return "nearby_context"
+        if _DISPLAY_RE.search(text):
+            return "locate_show"
+        # 주소만 단독 — 위치 보여달라는 의도와 동의어로 처리.
+        return "locate_show"
+
+    if is_current_parcel and _NEARBY_RE.search(text):
+        return "nearby_context"
+
+    facility = _extract_facility_anchor(text)
+    if facility and _NEARBY_RE.search(text):
+        if _BUILD_CANDIDATE_RE.search(text):
+            return "new_build_candidates"
+        if _MULTIFAMILY_RE.search(text):
+            return "existing_buildings"
+        if _LIST_RE.search(text):
+            return "nearby_context"
+        return "nearby_context"
+
+    return "general"

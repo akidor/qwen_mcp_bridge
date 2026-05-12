@@ -5,18 +5,15 @@ import { getChartSpec, MiniChart, ChartSpec } from "../charts/auto_chart";
 import ChartModal from "../charts/ChartModal";
 import MassModal from "../three/MassModal";
 import type { SceneData } from "../three/scene-types";
+import { setCurrentIntent, type IntentLabel } from "../intent/intentStore";
 
 type ChatRole = "user" | "assistant" | "system";
 
-export type ParcelCard = {
-  address: string;
-  pnu?: string;
-  areaM2?: number;
-  jimok?: string;
-  buildability?: string;  // "✅ 대(건축 가능)" 등
-  geometry: any;
-  bbox?: [number, number, number, number];
-};
+// ParcelCard는 ParcelRecord의 alias — 기존 호출자 호환 유지.
+import type { ParcelRecord, ParcelState } from "../types/parcel";
+import { parcelStateLabel } from "../types/parcel";
+export type ParcelCard = ParcelRecord;
+export type { ParcelState };
 
 type ToolEvent =
   | { kind: "start"; name: string; argsPreview: string }
@@ -201,6 +198,11 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
           }
           onLastChunk?.(data);
 
+          if (data.type === "intent") {
+            // 시각화 분기에 쓸 라벨 — 새 turn 시작마다 갱신.
+            setCurrentIntent(data.label as IntentLabel);
+            continue;
+          }
           if (data.type === "ui_action") {
             onUiAction?.(data.action, data.params);
             continue;
@@ -611,9 +613,14 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
                                   {Math.round(c.areaM2)}㎡ ({Math.round(c.areaM2 / 3.3058)}평)
                                 </span>
                               ) : null}
-                              {c.buildability ? (
-                                <span className="parcel-card-build">{c.buildability}</span>
-                              ) : null}
+                              {(() => {
+                                const lbl = parcelStateLabel(c.state);
+                                return lbl.text ? (
+                                  <span className={`parcel-card-state parcel-card-state--${lbl.tone}`}>
+                                    {lbl.text}
+                                  </span>
+                                ) : null;
+                              })()}
                             </span>
                           </li>
                         ))}
@@ -803,6 +810,27 @@ function buildabilityLabel(jimok: string | undefined): string | undefined {
   return `⚠️ ${j}(확인 필요)`;
 }
 
+/** jimok 1단계 평가만으로 1차 state·reason 추론. P5에서 backend
+ *  `analyze__evaluate_buildability`로 대체될 예정 — 그 전까지는 frontend가 보수적으로. */
+function inferState(jimok: string | undefined): { state: ParcelState; reason: string[] } {
+  const j = (jimok ?? "").trim();
+  if (!j) return { state: "insufficient_data", reason: ["지목 정보 없음"] };
+  if (NON_BUILDABLE_JIMOK.has(j)) return { state: "unsuitable", reason: [`지목 ${j} 부적합`] };
+  if (BUILDABLE_JIMOK.has(j)) {
+    return {
+      state: "primary_candidate",
+      reason: [`지목 ${j} 통과 — 용도지역·규제·접도 추가 확인 필요`],
+    };
+  }
+  if (DIFFICULT_JIMOK.has(j)) {
+    return {
+      state: "needs_verification",
+      reason: [`지목 ${j} — 전용허가 필요(농지·임야)`],
+    };
+  }
+  return { state: "needs_verification", reason: [`지목 ${j} 확인 필요`] };
+}
+
 function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | undefined {
   if (!resultText) return undefined;
   try {
@@ -817,9 +845,12 @@ function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | 
       const areaM2 = typeof parsed?.area_m2 === "number" ? parsed.area_m2 : Number(parsed?.area_m2) || undefined;
       const pnu = typeof parsed?.pnu === "string" ? parsed.pnu : undefined;
       const jimok = typeof parsed?.jimok === "string" ? parsed.jimok : undefined;
+      const inferred = inferState(jimok);
       return [{
         address, pnu, areaM2, jimok,
         buildability: buildabilityLabel(jimok),
+        state: inferred.state,
+        stateReason: inferred.reason,
         geometry: geom,
         bbox: bboxOfGeom(geom),
       }];
@@ -842,9 +873,16 @@ function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | 
       const pnu = typeof p.pnu === "string" ? p.pnu : undefined;
       const jimok = typeof p.jimok === "string" ? p.jimok : undefined;
       const buildability = typeof p.buildability === "string" ? p.buildability : undefined;
+      const inferred = inferState(jimok);
       const geom = f.geometry;
       if (!geom) continue;
-      cards.push({ address, pnu, areaM2, jimok, buildability, geometry: geom, bbox: bboxOfGeom(geom) });
+      cards.push({
+        address, pnu, areaM2, jimok, buildability,
+        state: inferred.state,
+        stateReason: inferred.reason,
+        geometry: geom,
+        bbox: bboxOfGeom(geom),
+      });
     }
     return cards.length > 0 ? cards : undefined;
   } catch {
