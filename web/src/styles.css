@@ -881,7 +881,7 @@ body {
   flex: 0 0 auto;
   width: 40px;
   height: 40px;
-  padding: 0;
+  padding: 8px 10px;
   font-size: 16px;
   line-height: 1;
   border-radius: 999px;
@@ -1298,14 +1298,86 @@ body {
   border: 1px solid var(--border);
   box-shadow: var(--panel-shadow);
   border-radius: 6px;
-  padding: 6px 10px;
+  padding: 0;
+  max-width: min(380px, calc(100vw - 48px));
   font-size: 12px;
+  line-height: 1.45;
   color: var(--fg);
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.parcel-detail-popup-wrap .maplibregl-popup-content {
+  padding: 0;
+}
+.parcel-popup-wrap .maplibregl-popup-close-button {
+  width: 24px;
+  height: 24px;
+  color: var(--muted);
+  font-size: 18px;
 }
 .parcel-popup-wrap .maplibregl-popup-tip {
   border-top-color: var(--panel-bg);
+}
+.parcel-detail-popup {
+  width: min(360px, calc(100vw - 56px));
+  max-height: min(520px, calc(100vh - 96px));
+  overflow-y: auto;
+  padding: 10px 12px;
+}
+.parcel-popup-header {
+  padding-right: 18px;
+  margin-bottom: 8px;
+}
+.parcel-popup-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+}
+.parcel-popup-address {
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--fg);
+  line-height: 1.35;
+}
+.parcel-popup-grid,
+.parcel-popup-section {
+  display: grid;
+  gap: 5px;
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.parcel-popup-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--fg);
+  margin-bottom: 1px;
+}
+.parcel-popup-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+.parcel-popup-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.parcel-popup-value {
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: pre-line;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.parcel-popup-muted {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 /* === P18 Slash autocomplete === */

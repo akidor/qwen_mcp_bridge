@@ -324,6 +324,7 @@ function basemapLabel(k: BasemapKind): string {
   switch (k) {
     case "white": return "백지도";
     case "base": return "일반";
+    case "gray": return "회색";
     case "satellite": return "위성";
     case "midnight": return "야간";
     case "hybrid": return "하이브리드";

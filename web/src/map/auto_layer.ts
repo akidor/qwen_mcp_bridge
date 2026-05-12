@@ -3,7 +3,199 @@ import maplibregl from "maplibre-gl";
 
 // 필지 popup용 글로벌 instance — 한 번에 1개만 노출.
 let _parcelPopup: maplibregl.Popup | null = null;
+let _parcelDetailPopup: maplibregl.Popup | null = null;
 const _parcelPopupLayers = new Set<string>();
+const _parcelDetailCache = new Map<string, Promise<ParcelExternalDetails>>();
+
+type ParcelExternalDetails = {
+  landuseplan?: any;
+  landactions?: any;
+  errors: string[];
+};
+
+function textOf(value: any): string {
+  if (value == null) return "";
+  return String(value).trim();
+}
+
+function compactPlanText(value: any): string {
+  return textOf(value).replace(/\s+/g, " ");
+}
+
+function composeParcelAddress(props: any): string {
+  const addrField = textOf(props.address ?? props.juso);
+  const jibun = textOf(props.jibun);
+  const usesServerComposed = addrField.endsWith(jibun) && jibun.length > 0;
+  const composed = jibun && addrField && !usesServerComposed ? `${addrField} ${jibun}` : addrField || jibun;
+  return composed || "(주소 미상)";
+}
+
+function parcelProperties(raw: any): Record<string, any> {
+  if (!raw || typeof raw !== "object") return {};
+  return {
+    pnu: raw.pnu,
+    address: raw.address,
+    juso: raw.juso,
+    jibun: raw.jibun,
+    area_m2: raw.area_m2 ?? raw.area,
+    jimok: raw.jimok,
+    zone: raw.zone ?? raw.zone_name,
+    land_use: raw.land_use ?? raw.landuse,
+    bcr_ratio: raw.bcr_ratio ?? raw.bcr,
+    far_ratio: raw.far_ratio ?? raw.far,
+  };
+}
+
+function formatAreaM2(value: any): string {
+  const area = Number(value);
+  if (!Number.isFinite(area) || area <= 0) return "";
+  return `${Math.round(area).toLocaleString()}㎡ (${Math.round(area / 3.3058).toLocaleString()}평)`;
+}
+
+function createNode(tag: string, className?: string, text?: string): HTMLElement {
+  const el = document.createElement(tag);
+  if (className) el.className = className;
+  if (text != null) el.textContent = text;
+  return el;
+}
+
+function appendInfoRow(parent: HTMLElement, label: string, value: string): void {
+  if (!value) return;
+  const row = createNode("div", "parcel-popup-row");
+  row.appendChild(createNode("span", "parcel-popup-label", label));
+  row.appendChild(createNode("span", "parcel-popup-value", value));
+  parent.appendChild(row);
+}
+
+function appendSection(parent: HTMLElement, title: string): HTMLElement {
+  const section = createNode("section", "parcel-popup-section");
+  section.appendChild(createNode("div", "parcel-popup-section-title", title));
+  parent.appendChild(section);
+  return section;
+}
+
+async function fetchJson(url: string): Promise<any> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.json();
+}
+
+function fetchParcelExternalDetails(pnu: string): Promise<ParcelExternalDetails> {
+  const cached = _parcelDetailCache.get(pnu);
+  if (cached) return cached;
+  const encoded = encodeURIComponent(pnu);
+  const promise = Promise.allSettled([
+    fetchJson(`/wmsapi/landuseplan?pnu=${encoded}`),
+    fetchJson(`/wmsapi/landactions?pnu=${encoded}`),
+  ]).then(([plan, actions]) => {
+    const errors: string[] = [];
+    if (plan.status === "rejected") errors.push(`토지이용계획 ${plan.reason?.message ?? "조회 실패"}`);
+    if (actions.status === "rejected") errors.push(`행위제한 ${actions.reason?.message ?? "조회 실패"}`);
+    return {
+      landuseplan: plan.status === "fulfilled" ? plan.value : undefined,
+      landactions: actions.status === "fulfilled" ? actions.value : undefined,
+      errors,
+    };
+  });
+  _parcelDetailCache.set(pnu, promise);
+  return promise;
+}
+
+function summarizeLandUsePlan(plan: any): Array<{ label: string; value: string }> {
+  if (!plan || typeof plan !== "object") return [];
+  const rows: Array<{ label: string; value: string }> = [];
+  for (const [group, rels] of Object.entries(plan).slice(0, 4)) {
+    if (!rels || typeof rels !== "object") continue;
+    for (const rel of ["포함", "접함", "저촉"]) {
+      const raw = (rels as any)[rel];
+      if (!raw || raw === "정보없음") continue;
+      const items = Array.isArray(raw) ? raw : [raw];
+      const value = items.map(compactPlanText).filter(Boolean).slice(0, 3).join("\n");
+      if (value) rows.push({ label: `${group} · ${rel}`, value });
+    }
+  }
+  return rows;
+}
+
+function actionText(action: any): string {
+  const target = textOf(action?.usetarget);
+  const act = textOf(action?.action);
+  return [target, act].filter(Boolean).join(" ");
+}
+
+function summarizeLandActions(actions: any): Array<{ label: string; value: string }> {
+  if (!actions || typeof actions !== "object") return [];
+  const rows: Array<{ label: string; value: string }> = [];
+  for (const [zone, grouped] of Object.entries(actions).slice(0, 4)) {
+    const possible = Array.isArray((grouped as any)?.가능) ? (grouped as any).가능 : [];
+    const banned = Array.isArray((grouped as any)?.금지) ? (grouped as any).금지 : [];
+    const examples = [
+      ...possible.map(actionText).filter(Boolean).slice(0, 2).map((v: string) => `가능: ${v}`),
+      ...banned.map(actionText).filter(Boolean).slice(0, 2).map((v: string) => `금지: ${v}`),
+    ];
+    const summary = `가능 ${possible.length.toLocaleString()}건 · 금지 ${banned.length.toLocaleString()}건`;
+    rows.push({ label: textOf(zone), value: examples.length ? `${summary}\n${examples.join("\n")}` : summary });
+  }
+  return rows;
+}
+
+function buildParcelDetailContent(
+  props: any,
+  detail: { status: "loading" | "ready" | "error"; external?: ParcelExternalDetails; error?: string },
+): HTMLElement {
+  const root = createNode("div", "parcel-detail-popup");
+  const address = composeParcelAddress(props);
+  const pnu = textOf(props.pnu);
+
+  const header = createNode("div", "parcel-popup-header");
+  header.appendChild(createNode("div", "parcel-popup-title", "필지 정보"));
+  header.appendChild(createNode("div", "parcel-popup-address", address));
+  root.appendChild(header);
+
+  const grid = createNode("div", "parcel-popup-grid");
+  appendInfoRow(grid, "면적", formatAreaM2(props.area_m2 ?? props.area));
+  appendInfoRow(grid, "지목", textOf(props.jimok));
+  appendInfoRow(grid, "용도", textOf(props.zone ?? props.zone_name ?? props.land_use ?? props.landuse));
+  appendInfoRow(grid, "편입", textOf(props.type));
+  const inc = props.incorporation_pct ?? props.incorporation_percent;
+  appendInfoRow(grid, "편입률", inc != null ? `${Number(inc).toFixed(1)}%` : "");
+  appendInfoRow(grid, "PNU", pnu);
+  root.appendChild(grid);
+
+  const detailSection = appendSection(root, "토지이용·규제 정보");
+  if (!pnu) {
+    detailSection.appendChild(createNode("div", "parcel-popup-muted", "PNU가 없어 상세 API를 조회할 수 없습니다."));
+    return root;
+  }
+  if (detail.status === "loading") {
+    detailSection.appendChild(createNode("div", "parcel-popup-muted", "dlof 상세정보를 불러오는 중..."));
+    return root;
+  }
+  if (detail.status === "error") {
+    detailSection.appendChild(createNode("div", "parcel-popup-muted", detail.error ?? "상세정보 조회 실패"));
+    return root;
+  }
+
+  const planRows = summarizeLandUsePlan(detail.external?.landuseplan);
+  if (planRows.length) {
+    const plan = appendSection(root, "토지이용계획");
+    for (const row of planRows) appendInfoRow(plan, row.label, row.value);
+  }
+
+  const actionRows = summarizeLandActions(detail.external?.landactions);
+  if (actionRows.length) {
+    const actions = appendSection(root, "행위제한");
+    for (const row of actionRows) appendInfoRow(actions, row.label, row.value);
+  }
+
+  const errors = detail.external?.errors ?? [];
+  if (!planRows.length && !actionRows.length) {
+    detailSection.appendChild(createNode("div", "parcel-popup-muted", "표시할 상세정보가 없습니다."));
+  } else if (errors.length) {
+    detailSection.appendChild(createNode("div", "parcel-popup-muted", errors.join(" · ")));
+  }
+  return root;
+}
 
 function attachParcelPopup(map: any, fillLayerId: string) {
   if (_parcelPopupLayers.has(fillLayerId)) return;
@@ -13,16 +205,11 @@ function attachParcelPopup(map: any, fillLayerId: string) {
     const f = e.features?.[0];
     if (!f) return;
     const props = f.properties ?? {};
-    // backend는 address(=juso 동까지) + jibun을 분리 반환. substring 매칭은 false positive 가능 → 안 씀.
-    // address가 이미 합쳐진 경우(server-side _full_addr로) jibun 추가 합치기 skip.
-    const addrField = (props.address ?? props.juso ?? "").toString().trim();
-    const jibun = (props.jibun ?? "").toString().trim();
-    const usesServerComposed = addrField.endsWith(jibun) && jibun.length > 0;
-    const composed = jibun && addrField && !usesServerComposed ? `${addrField} ${jibun}` : addrField || jibun;
-    const addr = composed || "(주소 미상)";
-    const areaM2 = Number(props.area_m2 ?? 0);
+    const addr = composeParcelAddress(props);
+    const areaM2 = Number(props.area_m2 ?? props.area ?? 0);
     const py = areaM2 > 0 ? ` · ${Math.round(areaM2)}㎡ (${Math.round(areaM2 / 3.3058)}평)` : "";
-    const inc = props.incorporation_pct != null ? ` · 편입률 ${props.incorporation_pct}%` : "";
+    const incValue = props.incorporation_pct ?? props.incorporation_percent;
+    const inc = incValue != null ? ` · 편입률 ${Number(incValue).toFixed(1)}%` : "";
     map.getCanvas().style.cursor = "pointer";
     if (!_parcelPopup) {
       _parcelPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 8 });
@@ -38,8 +225,50 @@ function attachParcelPopup(map: any, fillLayerId: string) {
     map.getCanvas().style.cursor = "";
     _parcelPopup?.remove();
   };
+  const onClick = (e: any) => {
+    const f = e.features?.[0];
+    if (!f) return;
+    const props = f.properties ?? {};
+    e.originalEvent?.stopPropagation?.();
+    _parcelPopup?.remove();
+    if (!_parcelDetailPopup) {
+      _parcelDetailPopup = new maplibregl.Popup({
+        closeButton: true,
+        closeOnClick: false,
+        offset: 10,
+        maxWidth: "380px",
+      });
+    }
+    const popup = _parcelDetailPopup;
+    popup
+      .setLngLat(e.lngLat)
+      .setDOMContent(buildParcelDetailContent(props, { status: "loading" }))
+      .addTo(map);
+    popup.getElement()?.classList.add("parcel-popup-wrap");
+    popup.getElement()?.classList.add("parcel-detail-popup-wrap");
+
+    const pnu = textOf(props.pnu);
+    if (!pnu) return;
+    fetchParcelExternalDetails(pnu)
+      .then((external) => {
+        if (_parcelDetailPopup !== popup) return;
+        popup.setDOMContent(buildParcelDetailContent(props, { status: "ready", external }));
+        popup.getElement()?.classList.add("parcel-popup-wrap");
+        popup.getElement()?.classList.add("parcel-detail-popup-wrap");
+      })
+      .catch((err) => {
+        if (_parcelDetailPopup !== popup) return;
+        popup.setDOMContent(buildParcelDetailContent(props, {
+          status: "error",
+          error: err instanceof Error ? err.message : String(err),
+        }));
+        popup.getElement()?.classList.add("parcel-popup-wrap");
+        popup.getElement()?.classList.add("parcel-detail-popup-wrap");
+      });
+  };
   map.on("mousemove", fillLayerId, onMove);
   map.on("mouseleave", fillLayerId, onLeave);
+  map.on("click", fillLayerId, onClick);
 }
 
 
@@ -146,11 +375,16 @@ function addPolygonLayer(
   layerId: string,
   fillColor: string,
   outlineColor: string,
-  options: { outlineDash?: number[]; labelText?: string } = {},
+  options: {
+    outlineDash?: number[];
+    labelText?: string;
+    properties?: Record<string, any>;
+    attachParcelInfo?: boolean;
+  } = {},
 ): ApplyResult {
   const sourceId = `${layerId}-src`;
   if (map.getSource(sourceId)) return { layerId, message: "이미 존재" };
-  const properties: Record<string, any> = {};
+  const properties: Record<string, any> = { ...(options.properties ?? {}) };
   if (options.labelText) properties.label = options.labelText;
   map.addSource(sourceId, {
     type: "geojson",
@@ -177,6 +411,9 @@ function addPolygonLayer(
       offset: [0, 0],
       size: 12,
     });
+  }
+  if (options.attachParcelInfo) {
+    attachParcelPopup(map, `${layerId}-fill`);
   }
   const bbox = geom.type === "Polygon" ? bboxOfPolygon(geom.coordinates) : undefined;
   return { layerId, message: `polygon 추가됨 (${layerId})`, bbox };
@@ -303,21 +540,30 @@ export function applyToolResult(map: any, toolName: string, resultText: string):
   if (toolName === "locate__get_parcel") {
     const geom = parsed?.geometry;
     if (isGeometry(geom)) {
-      return addPolygonLayer(map, geom, uniqueId("parcel"), COLOR_PARCEL_FILL, COLOR_PARCEL_OUTLINE);
+      return addPolygonLayer(map, geom, uniqueId("parcel"), COLOR_PARCEL_FILL, COLOR_PARCEL_OUTLINE, {
+        properties: parcelProperties(parsed),
+        attachParcelInfo: true,
+      });
     }
   }
   // locate__parcels_union — { geometry: Polygon }
   if (toolName === "locate__parcels_union") {
     const geom = parsed?.geometry;
     if (isGeometry(geom)) {
-      return addPolygonLayer(map, geom, uniqueId("parcels-union"), COLOR_PARCEL_FILL, COLOR_PARCEL_OUTLINE);
+      return addPolygonLayer(map, geom, uniqueId("parcels-union"), COLOR_PARCEL_FILL, COLOR_PARCEL_OUTLINE, {
+        properties: parcelProperties(parsed),
+        attachParcelInfo: true,
+      });
     }
   }
   // locate__parcel_at_point — { found: bool, feature: { geometry } } (라벨 없음)
   if (toolName === "locate__parcel_at_point") {
     const geom = parsed?.feature?.geometry;
     if (isGeometry(geom)) {
-      return addPolygonLayer(map, geom, uniqueId("parcel-pt"), COLOR_PARCEL_FILL, COLOR_PARCEL_OUTLINE);
+      return addPolygonLayer(map, geom, uniqueId("parcel-pt"), COLOR_PARCEL_FILL, COLOR_PARCEL_OUTLINE, {
+        properties: parcelProperties(parsed?.feature?.properties ?? parsed),
+        attachParcelInfo: true,
+      });
     }
   }
   // locate__parcels_in_boundary / analyze__find_parcels — FeatureCollection 또는 {features: [...]}
