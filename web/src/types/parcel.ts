@@ -40,6 +40,11 @@ export interface ParcelRecord {
   regulation?: ParcelRegulationSummary;
   state?: ParcelState;
   stateReason?: string[];         // 왜 그 state인지 — UI에 한 줄씩 노출 가능
+  /** state가 backend 결정인지 frontend 1차 추론(inferState by jimok)인지 구분.
+   *  true면 권위 있는 결정 — merge 시 authoritative하지 않은 state로 덮이지 않음.
+   *  evaluate_buildability 결과와 features properties.state(find_existing_buildings 등)는 true,
+   *  jimok-only inferState는 false. */
+  stateAuthoritative?: boolean;
   geometry: any;
   bbox?: [number, number, number, number];
 }

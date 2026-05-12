@@ -763,10 +763,21 @@ function collectParcelCards(toolEvents: ToolEvent[] | undefined): ParcelCard[] {
         continue;
       }
       const merged: ParcelCard = { ...prev };
-      // backend state는 evaluate가 더 정확 — 항상 덮어쓰기 허용.
-      if (c.state) {
-        merged.state = c.state;
-        merged.stateReason = c.stateReason ?? prev.stateReason;
+      const prevAuth = !!prev.stateAuthoritative;
+      const cAuth = !!c.stateAuthoritative;
+      // state 권위 우선순위:
+      //   1. 양쪽 다 authoritative → c(later)가 덮음
+      //   2. c만 authoritative → c가 덮음
+      //   3. prev만 authoritative → c가 가져온 inferState는 무시 (덮지 않음)
+      //   4. 둘 다 inferState → c(later)가 덮음
+      if (cAuth || !prevAuth) {
+        if (c.state) {
+          merged.state = c.state;
+          merged.stateReason = c.stateReason ?? prev.stateReason;
+          merged.stateAuthoritative = cAuth || prevAuth;
+        } else if (!merged.stateReason && c.stateReason) {
+          merged.stateReason = c.stateReason;
+        }
       } else if (!merged.stateReason && c.stateReason) {
         merged.stateReason = c.stateReason;
       }
@@ -887,6 +898,7 @@ function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | 
         buildability: buildabilityLabel(jimok),
         state: stateVal,
         stateReason: reasons,
+        stateAuthoritative: !!stateVal,
         geometry: { type: "Point", coordinates: [0, 0] },
       }];
     }
@@ -945,6 +957,7 @@ function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | 
         address, pnu, areaM2, jimok, buildability,
         state: backendState ?? inferred?.state,
         stateReason: backendReason ?? inferred?.reason,
+        stateAuthoritative: !!backendState,
         geometry: geom,
         bbox: bboxOfGeom(geom),
       });
