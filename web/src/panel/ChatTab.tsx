@@ -741,20 +741,49 @@ function prettyToolName(name: string): string {
   return name;
 }
 
+function _isPolygonGeom(g: any): boolean {
+  const t = g?.type;
+  return t === "Polygon" || t === "MultiPolygon";
+}
+
+/** 같은 PNU의 카드는 dedup 대신 merge —
+ *  find_parcels(geometry 있음, jimok 1차 state)와 evaluate_buildability(geometry 없고 backend state 정확)
+ *  같이 등장하는 시나리오에서 state·reason은 evaluate 결과가 덮고 geometry는 find 결과를 유지. */
 function collectParcelCards(toolEvents: ToolEvent[] | undefined): ParcelCard[] {
   if (!toolEvents) return [];
-  const seen = new Set<string>();
-  const out: ParcelCard[] = [];
+  const byKey = new Map<string, ParcelCard>();
   for (const ev of toolEvents) {
     if (ev.kind !== "end" || !ev.parcelCards) continue;
     for (const c of ev.parcelCards) {
       const key = c.pnu || c.address;
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      out.push(c);
+      if (!key) continue;
+      const prev = byKey.get(key);
+      if (!prev) {
+        byKey.set(key, c);
+        continue;
+      }
+      const merged: ParcelCard = { ...prev };
+      // backend state는 evaluate가 더 정확 — 항상 덮어쓰기 허용.
+      if (c.state) {
+        merged.state = c.state;
+        merged.stateReason = c.stateReason ?? prev.stateReason;
+      } else if (!merged.stateReason && c.stateReason) {
+        merged.stateReason = c.stateReason;
+      }
+      // geometry는 polygon이 있으면 유지, prev가 placeholder Point이고 c가 polygon이면 교체.
+      if (!_isPolygonGeom(prev.geometry) && _isPolygonGeom(c.geometry)) {
+        merged.geometry = c.geometry;
+        merged.bbox = c.bbox ?? merged.bbox;
+      }
+      // 잔여 필드 fill — 빈 칸을 채우는 방향으로만.
+      merged.areaM2 = prev.areaM2 ?? c.areaM2;
+      merged.jimok = prev.jimok ?? c.jimok;
+      merged.buildability = prev.buildability ?? c.buildability;
+      if (!prev.address || prev.address === "(주소 미상)") merged.address = c.address;
+      byKey.set(key, merged);
     }
   }
-  return out;
+  return Array.from(byKey.values());
 }
 
 function countToolGroups(toolEvents: ToolEvent[] | undefined): { tools: number; charts: number; masses: number } {
