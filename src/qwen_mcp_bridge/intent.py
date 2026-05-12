@@ -40,8 +40,28 @@ ALL_INTENTS: tuple[IntentLabel, ...] = (
     "general",
 )
 
-_RISK_RE = re.compile(r"리스크|위험|사도\s*돼|매수.*괜찮|살까|매입.*괜찮")
+_RISK_RE = re.compile(r"리스크|위험|사도\s*돼|매수.*괜찮|살까|매입.*괜찮|매수.*안전")
+# 단일 필지 상세 검토 — "분석/상세/검토/가능해/가능한가/이 땅/이 필지/이 부지".
 _DETAIL_RE = re.compile(r"분석|상세|검토|가능해|가능한가|어떤\s*땅|이\s*땅|이\s*필지|이\s*부지")
+# "다세대 가능?" "근생 가능해?" 같이 building 용도 의도 표현 — evaluate_buildability의
+# existing_use_hint 파라미터 추출에 쓰임. classify_intent 자체에는 영향 없음.
+_USE_HINT_RES: tuple[tuple[str, re.Pattern], ...] = (
+    ("다세대", re.compile(r"다세대")),
+    ("다가구", re.compile(r"다가구")),
+    ("공동주택", re.compile(r"공동주택")),
+    ("연립주택", re.compile(r"연립")),
+    ("단독주택", re.compile(r"단독주택|단독\s*주거")),
+    ("근린생활시설", re.compile(r"근린생활|근생")),
+    ("주차장", re.compile(r"주차장")),
+)
+
+
+def extract_existing_use_hint(text: str) -> str | None:
+    """발화에서 evaluate_buildability에 넘길 existing_use_hint를 1개 추출 (없으면 None)."""
+    for hint, pattern in _USE_HINT_RES:
+        if pattern.search(text):
+            return hint
+    return None
 
 
 def classify_intent(messages: list[dict[str, Any]]) -> IntentLabel:
@@ -74,6 +94,10 @@ def classify_intent(messages: list[dict[str, Any]]) -> IntentLabel:
             if _MULTIFAMILY_RE.search(text):
                 return "existing_buildings"
             return "nearby_context"
+        # 주소 anchor 있고 nearby 없을 때:
+        # "분석/상세/검토/가능해" 등 분석 의도가 있으면 parcel_detail (locate_show가 아님).
+        if _DETAIL_RE.search(text):
+            return "parcel_detail"
         if _DISPLAY_RE.search(text):
             return "locate_show"
         # 주소만 단독 — 위치 보여달라는 의도와 동의어로 처리.

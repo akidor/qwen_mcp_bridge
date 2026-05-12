@@ -1,4 +1,4 @@
-from qwen_mcp_bridge.intent import classify_intent
+from qwen_mcp_bridge.intent import classify_intent, extract_existing_use_hint
 
 
 def _user(text: str) -> list[dict]:
@@ -8,6 +8,27 @@ def _user(text: str) -> list[dict]:
 def test_address_only_is_locate_show():
     assert classify_intent(_user("쌍동리 254-7")) == "locate_show"
     assert classify_intent(_user("강남구 역삼동 738-1 위치 보여줘")) == "locate_show"
+
+
+def test_address_with_detail_intent_is_parcel_detail():
+    assert classify_intent(_user("양재동 344-7 분석해줘")) == "parcel_detail"
+    assert classify_intent(_user("양재동 344-7 다세대 가능해?")) == "parcel_detail"
+    assert classify_intent(_user("내곡동 738-1 상세 검토")) == "parcel_detail"
+    assert classify_intent(_user("쌍동리 254-7 건축 가능한가")) == "parcel_detail"
+
+
+def test_address_with_risk_intent_is_risk_check():
+    assert classify_intent(_user("양재동 344-7 이 땅 사도 돼?")) == "risk_check"
+    assert classify_intent(_user("쌍동리 254-7 매수 괜찮을까?")) == "risk_check"
+    assert classify_intent(_user("이 땅 리스크 봐줘")) == "risk_check"
+
+
+def test_extract_existing_use_hint():
+    assert extract_existing_use_hint("양재동 344-7 다세대 가능해?") == "다세대"
+    assert extract_existing_use_hint("이 필지 다가구 가능?") == "다가구"
+    assert extract_existing_use_hint("강남구 단독주택 지을 땅") == "단독주택"
+    assert extract_existing_use_hint("근린생활시설 가능해?") == "근린생활시설"
+    assert extract_existing_use_hint("이 땅 분석해줘") is None
 
 
 def test_address_nearby_multifamily_no_build_is_existing_buildings():

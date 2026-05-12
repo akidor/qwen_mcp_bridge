@@ -43,6 +43,13 @@ function parcelProperties(raw: any): Record<string, any> {
     land_use: raw.land_use ?? raw.landuse,
     bcr_ratio: raw.bcr_ratio ?? raw.bcr,
     far_ratio: raw.far_ratio ?? raw.far,
+    // backend(find_existing_buildings / evaluate_buildability)가 결정한 판단 근거 보존.
+    state: raw.state,
+    state_reason: raw.state_reason,
+    matched_use: raw.matched_use,
+    building: raw.building,
+    building_floors: raw.building_floors,
+    max_road_width_m: raw.max_road_width_m,
   };
 }
 
@@ -353,12 +360,127 @@ function appendLandActions(root: HTMLElement, actions: any): boolean {
   return true;
 }
 
+// === 판단 상태/평가 사유/기존 건축물 섹션 (backend state 보존) ===
+
+type StateChipKind = "ok" | "warn" | "bad" | "neutral";
+const _STATE_TO_KOREAN: Record<string, { label: string; kind: StateChipKind }> = {
+  confirmed_existing_building: { label: "기존 건축물 확인", kind: "ok" },
+  primary_candidate: { label: "1차 후보 (추가 확인 필요)", kind: "warn" },
+  unsuitable: { label: "부적합", kind: "bad" },
+  needs_verification: { label: "추가 확인 필요", kind: "warn" },
+  insufficient_data: { label: "정보 부족", kind: "neutral" },
+};
+
+function appendStateSection(root: HTMLElement, props: any): boolean {
+  const stateRaw = textOf(props.state);
+  if (!stateRaw) return false;
+  const entry = _STATE_TO_KOREAN[stateRaw];
+  if (!entry) return false;
+  const sect = appendSection(root, "📌 판단 상태");
+  const chip = createNode("span", `parcel-popup-state-chip parcel-popup-state-chip--${entry.kind}`, entry.label);
+  sect.appendChild(chip);
+  return true;
+}
+
+function appendStateReasonSection(root: HTMLElement, props: any): boolean {
+  const reasonRaw = props.state_reason;
+  const reasons: string[] = Array.isArray(reasonRaw)
+    ? reasonRaw.map((r: any) => textOf(r)).filter(Boolean)
+    : [];
+  if (!reasons.length) return false;
+  const sect = appendSection(root, "🧮 평가 사유");
+  const list = createNode("ul", "parcel-popup-reason-list");
+  for (const r of reasons.slice(0, 5)) {
+    const li = createNode("li", "parcel-popup-reason-item", r);
+    list.appendChild(li);
+  }
+  sect.appendChild(list);
+  if (reasons.length > 5) {
+    sect.appendChild(createNode("div", "parcel-popup-muted", `· 외 ${reasons.length - 5}건`));
+  }
+  return true;
+}
+
+function appendBuildingSection(root: HTMLElement, props: any): boolean {
+  const building = props.building;
+  const floors = props.building_floors;
+  const matched = textOf(props.matched_use);
+  const maxRoad = props.max_road_width_m;
+  const hasBuilding = building && typeof building === "object" && Object.keys(building).length > 0;
+  const hasFloors = Array.isArray(floors) && floors.length > 0;
+  if (!hasBuilding && !hasFloors && !matched && !(typeof maxRoad === "number" && maxRoad > 0)) {
+    return false;
+  }
+  const sect = appendSection(root, "🏢 기존 건축물");
+  if (matched) {
+    const row = createNode("div", "parcel-popup-row");
+    row.appendChild(createNode("span", "parcel-popup-label", "확인된 용도"));
+    row.appendChild(createNode("span", "parcel-popup-value", matched));
+    sect.appendChild(row);
+  }
+  if (hasBuilding) {
+    const b = building as any;
+    const mainUse = textOf(b.use ?? b.main_use ?? b.mainUse);
+    const totalArea = b.total_area_m2 ?? b.totalAreaM2 ?? b.area_m2 ?? b.totalArea;
+    const floorsCount = b.floors ?? b.floor_count ?? b.ground_floors;
+    const approval = textOf(b.approval_date ?? b.approvalDate ?? b.use_approval_date);
+    if (mainUse) {
+      const row = createNode("div", "parcel-popup-row");
+      row.appendChild(createNode("span", "parcel-popup-label", "주용도"));
+      row.appendChild(createNode("span", "parcel-popup-value", mainUse));
+      sect.appendChild(row);
+    }
+    if (floorsCount != null && floorsCount !== "") {
+      const row = createNode("div", "parcel-popup-row");
+      row.appendChild(createNode("span", "parcel-popup-label", "층수"));
+      row.appendChild(createNode("span", "parcel-popup-value", `${floorsCount}층`));
+      sect.appendChild(row);
+    }
+    const totalAreaNum = Number(totalArea);
+    if (Number.isFinite(totalAreaNum) && totalAreaNum > 0) {
+      const row = createNode("div", "parcel-popup-row");
+      row.appendChild(createNode("span", "parcel-popup-label", "연면적"));
+      row.appendChild(createNode("span", "parcel-popup-value", `${Math.round(totalAreaNum).toLocaleString()}㎡`));
+      sect.appendChild(row);
+    }
+    if (approval) {
+      const row = createNode("div", "parcel-popup-row");
+      row.appendChild(createNode("span", "parcel-popup-label", "사용승인"));
+      row.appendChild(createNode("span", "parcel-popup-value", approval));
+      sect.appendChild(row);
+    }
+  }
+  if (hasFloors) {
+    const flat = (floors as any[])
+      .map((f: any) => textOf(f?.use ?? f?.main_use ?? f?.label))
+      .filter(Boolean);
+    if (flat.length > 0) {
+      const row = createNode("div", "parcel-popup-row");
+      row.appendChild(createNode("span", "parcel-popup-label", "층별 용도"));
+      row.appendChild(createNode("span", "parcel-popup-value", flat.slice(0, 4).join(" / ")));
+      sect.appendChild(row);
+    }
+  }
+  if (typeof maxRoad === "number" && maxRoad > 0) {
+    const row = createNode("div", "parcel-popup-row");
+    row.appendChild(createNode("span", "parcel-popup-label", "최광로 폭"));
+    row.appendChild(createNode("span", "parcel-popup-value", `${maxRoad.toFixed(1)}m`));
+    sect.appendChild(row);
+  }
+  return true;
+}
+
 function buildParcelDetailContent(
   props: any,
   detail: { status: "loading" | "ready" | "error"; external?: ParcelExternalDetails; error?: string },
 ): HTMLElement {
   const root = createNode("div", "parcel-detail-popup");
   root.appendChild(buildPopupHeader(props, "detail"));
+
+  // backend가 보낸 판단 상태·사유·기존 건축물은 외부 API 결과와 무관하게 먼저 표시.
+  appendStateSection(root, props);
+  appendStateReasonSection(root, props);
+  appendBuildingSection(root, props);
 
   const pnu = textOf(props.pnu);
   if (!pnu) {
@@ -1072,7 +1194,7 @@ const PARCEL_FOCUS_FILL = "parcel-focus-fill";
 const PARCEL_FOCUS_LINE = "parcel-focus-line";
 let _focusPopup: maplibregl.Popup | null = null;
 
-/** 채팅 parcel-card 클릭 → bbox로 flyTo + 강조 outline + 주소 popup. 이전 focus는 교체. */
+/** 채팅 parcel-card 클릭 → bbox로 flyTo + 강조 outline + 상세 popup. 이전 focus는 교체. */
 export function focusParcel(
   map: any,
   feature: {
@@ -1082,6 +1204,13 @@ export function focusParcel(
     areaM2?: number;
     jimok?: string;
     pnu?: string;
+    zone?: string;
+    state?: string;
+    stateReason?: string[];
+    matchedUse?: string;
+    building?: any;
+    buildingFloors?: any[];
+    maxRoadWidthM?: number;
   },
 ): void {
   if (!map || !feature?.geometry) return;
@@ -1121,7 +1250,7 @@ export function focusParcel(
       console.warn("[focusParcel] fitBounds failed:", e);
     }
   }
-  // 주소 popup — hover popup과 동일 glass-card 헤더(chip 포함).
+  // 상세 popup — backend state/reason/building까지 포함한 glass-card detail.
   try {
     if (_focusPopup) _focusPopup.remove();
     if (feature.address && bbox) {
@@ -1132,16 +1261,24 @@ export function focusParcel(
         area_m2: feature.areaM2,
         jimok: feature.jimok,
         pnu: feature.pnu,
+        zone: feature.zone,
+        state: feature.state,
+        state_reason: feature.stateReason,
+        matched_use: feature.matchedUse,
+        building: feature.building,
+        building_floors: feature.buildingFloors,
+        max_road_width_m: feature.maxRoadWidthM,
       };
-      const wrap = createNode("div", "parcel-hover-popup");
-      wrap.appendChild(buildPopupHeader(props, "hover"));
-      _focusPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, offset: 8 })
+      // wmsapi 외부 호출 없이도 backend 판단 정보를 바로 보여주려고 detail content 사용.
+      // 외부 plan/actions는 detail.status를 'error'로 두면 부드럽게 폴백.
+      const wrap = buildParcelDetailContent(props, { status: "ready", external: { errors: [] } });
+      _focusPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, offset: 8, maxWidth: "380px" })
         .setLngLat([cx, cy])
         .setDOMContent(wrap)
         .addTo(map);
       const el = _focusPopup.getElement();
       el?.classList.add("parcel-popup-wrap");
-      el?.classList.add("parcel-hover-popup-wrap");
+      el?.classList.add("parcel-detail-popup-wrap");
     }
   } catch (e) {
     console.warn("[focusParcel] popup failed:", e);

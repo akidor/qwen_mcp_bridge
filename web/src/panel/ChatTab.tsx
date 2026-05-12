@@ -15,7 +15,7 @@ import { parcelStateLabel } from "../types/parcel";
 export type ParcelCard = ParcelRecord;
 export type { ParcelState };
 
-type ToolEvent =
+export type ToolEvent =
   | { kind: "start"; name: string; argsPreview: string }
   | {
       kind: "end";
@@ -749,7 +749,7 @@ function _isPolygonGeom(g: any): boolean {
 /** 같은 PNU의 카드는 dedup 대신 merge —
  *  find_parcels(geometry 있음, jimok 1차 state)와 evaluate_buildability(geometry 없고 backend state 정확)
  *  같이 등장하는 시나리오에서 state·reason은 evaluate 결과가 덮고 geometry는 find 결과를 유지. */
-function collectParcelCards(toolEvents: ToolEvent[] | undefined): ParcelCard[] {
+export function collectParcelCards(toolEvents: ToolEvent[] | undefined): ParcelCard[] {
   if (!toolEvents) return [];
   const byKey = new Map<string, ParcelCard>();
   for (const ev of toolEvents) {
@@ -789,7 +789,12 @@ function collectParcelCards(toolEvents: ToolEvent[] | undefined): ParcelCard[] {
       // 잔여 필드 fill — 빈 칸을 채우는 방향으로만.
       merged.areaM2 = prev.areaM2 ?? c.areaM2;
       merged.jimok = prev.jimok ?? c.jimok;
+      merged.zone = prev.zone ?? c.zone;
       merged.buildability = prev.buildability ?? c.buildability;
+      merged.matchedUse = prev.matchedUse ?? c.matchedUse;
+      merged.building = prev.building ?? c.building;
+      merged.buildingFloors = prev.buildingFloors ?? c.buildingFloors;
+      merged.maxRoadWidthM = prev.maxRoadWidthM ?? c.maxRoadWidthM;
       if (!prev.address || prev.address === "(주소 미상)") merged.address = c.address;
       byKey.set(key, merged);
     }
@@ -844,12 +849,14 @@ const NON_BUILDABLE_JIMOK = new Set([
 const DIFFICULT_JIMOK = new Set(["전","답","과","과수원","목","목장용지","임","임야"]);
 const BUILDABLE_JIMOK = new Set(["대","대지","잡","잡종지"]);
 function buildabilityLabel(jimok: string | undefined): string | undefined {
+  // backend evaluate_buildability가 결정한 state가 권위 — 이 함수는 jimok만 보는 1차 추론이라
+  // "건축 가능" 단정 표현을 쓰지 않는다. "1차 후보 / 추가 확인 필요" 톤으로 낮춤.
   const j = (jimok ?? "").trim();
   if (!j) return undefined;
   if (NON_BUILDABLE_JIMOK.has(j)) return `❌ ${j}(건축 불가)`;
   if (DIFFICULT_JIMOK.has(j)) return `⚠️ ${j}(전용허가 필요)`;
-  if (BUILDABLE_JIMOK.has(j)) return `✅ ${j}(건축 가능)`;
-  return `⚠️ ${j}(확인 필요)`;
+  if (BUILDABLE_JIMOK.has(j)) return `✅ ${j}(1차 후보)`;
+  return `⚠️ ${j}(추가 확인 필요)`;
 }
 
 /** jimok 1단계 평가만으로 1차 state·reason 추론. P5에서 backend
@@ -873,7 +880,7 @@ function inferState(jimok: string | undefined): { state: ParcelState; reason: st
   return { state: "needs_verification", reason: [`지목 ${j} 확인 필요`] };
 }
 
-function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | undefined {
+export function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | undefined {
   if (!resultText) return undefined;
   try {
     const raw = JSON.parse(resultText);
@@ -885,25 +892,31 @@ function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | 
       const areaM2 = typeof parsed?.area_m2 === "number" ? parsed.area_m2 : Number(parsed?.area_m2) || undefined;
       const pnu = typeof parsed?.pnu === "string" ? parsed.pnu : undefined;
       const jimok = typeof parsed?.jimok === "string" ? parsed.jimok : undefined;
+      const zone = typeof parsed?.zone === "string" ? parsed.zone : undefined;
       const stateVal = typeof parsed?.state === "string" ? (parsed.state as ParcelState) : undefined;
       const reasons = Array.isArray(parsed?.state_reason)
         ? (parsed.state_reason as any[]).filter((s) => typeof s === "string")
         : [];
+      const building = (parsed?.building && typeof parsed.building === "object") ? parsed.building : undefined;
+      const maxRoad = typeof parsed?.max_road_width_m === "number" ? parsed.max_road_width_m : undefined;
       // evaluate_buildability는 geometry를 반환하지 않음 → 빈 placeholder. 시각화는 별도.
       return [{
         address,
         pnu,
         areaM2,
         jimok,
+        zone,
         buildability: buildabilityLabel(jimok),
         state: stateVal,
         stateReason: reasons,
         stateAuthoritative: !!stateVal,
+        building,
+        maxRoadWidthM: maxRoad,
         geometry: { type: "Point", coordinates: [0, 0] },
       }];
     }
 
-    // 단일 필지 — locate__get_parcel: { pnu, address, jibun, area_m2, jimok, geometry }
+    // 단일 필지 — locate__get_parcel: { pnu, address, jibun, area_m2, jimok, building, geometry }
     if (toolName === "locate__get_parcel" || toolName === "locate__parcels_union") {
       const geom = parsed?.geometry;
       if (!geom || typeof geom !== "object") return undefined;
@@ -911,12 +924,17 @@ function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | 
       const areaM2 = typeof parsed?.area_m2 === "number" ? parsed.area_m2 : Number(parsed?.area_m2) || undefined;
       const pnu = typeof parsed?.pnu === "string" ? parsed.pnu : undefined;
       const jimok = typeof parsed?.jimok === "string" ? parsed.jimok : undefined;
+      const zone = typeof parsed?.zone === "string" ? parsed.zone : (typeof parsed?.land_use === "string" ? parsed.land_use : undefined);
+      const building = (parsed?.building && typeof parsed.building === "object") ? parsed.building : undefined;
+      const buildingFloors = Array.isArray(parsed?.building_floors) ? parsed.building_floors : undefined;
       const inferred = inferState(jimok);
       return [{
-        address, pnu, areaM2, jimok,
+        address, pnu, areaM2, jimok, zone,
         buildability: buildabilityLabel(jimok),
         state: inferred.state,
         stateReason: inferred.reason,
+        building,
+        buildingFloors,
         geometry: geom,
         bbox: bboxOfGeom(geom),
       }];
@@ -944,20 +962,29 @@ function parseParcelCards(toolName: string, resultText: string): ParcelCard[] | 
       const areaM2 = typeof p.area_m2 === "number" ? p.area_m2 : Number(p.area_m2) || undefined;
       const pnu = typeof p.pnu === "string" ? p.pnu : undefined;
       const jimok = typeof p.jimok === "string" ? p.jimok : undefined;
+      const zone = typeof p.zone === "string" ? p.zone : (typeof p.land_use === "string" ? p.land_use : undefined);
       const buildability = typeof p.buildability === "string" ? p.buildability : undefined;
       // backend가 보낸 state·state_reason 우선 — find_existing_buildings, evaluate 결과 등.
       const backendState = typeof p.state === "string" ? (p.state as ParcelState) : undefined;
       const backendReason = Array.isArray(p.state_reason)
         ? (p.state_reason as any[]).filter((s) => typeof s === "string")
         : undefined;
+      const matchedUse = typeof p.matched_use === "string" ? p.matched_use : undefined;
+      const building = (p.building && typeof p.building === "object") ? p.building : undefined;
+      const buildingFloors = Array.isArray(p.building_floors) ? p.building_floors : undefined;
+      const maxRoad = typeof p.max_road_width_m === "number" ? p.max_road_width_m : undefined;
       const inferred = backendState ? null : inferState(jimok);
       const geom = f.geometry;
       if (!geom) continue;
       cards.push({
-        address, pnu, areaM2, jimok, buildability,
+        address, pnu, areaM2, jimok, zone, buildability,
         state: backendState ?? inferred?.state,
         stateReason: backendReason ?? inferred?.reason,
         stateAuthoritative: !!backendState,
+        matchedUse,
+        building,
+        buildingFloors,
+        maxRoadWidthM: maxRoad,
         geometry: geom,
         bbox: bboxOfGeom(geom),
       });

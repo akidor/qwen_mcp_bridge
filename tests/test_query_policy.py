@@ -74,3 +74,70 @@ def test_routing_hint_returns_none_for_plain_smalltalk():
     assert build_routing_hint([
         {"role": "user", "content": "안녕"},
     ]) is None
+
+
+def test_routing_hint_address_detail_intent_uses_evaluate_buildability():
+    """양재동 344-7 분석해줘 → parcel_detail chain."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "양재동 344-7 분석해줘"},
+    ])
+    assert hint is not None
+    assert "bucket=단일 필지 상세 검토" in hint
+    assert "anchor_type=address" in hint
+    assert "anchor_text=양재동 344-7" in hint
+    assert "locate__search_address -> locate__get_parcel -> analyze__evaluate_buildability(pnu)" in hint
+    assert "단정 금지" in hint
+
+
+def test_routing_hint_address_use_hint_threads_existing_use_hint():
+    """양재동 344-7 다세대 가능해? → existing_use_hint='다세대' 포함."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "양재동 344-7 다세대 가능해?"},
+    ])
+    assert hint is not None
+    assert "bucket=단일 필지 상세 검토" in hint
+    assert 'analyze__evaluate_buildability(pnu, existing_use_hint="다세대")' in hint
+
+
+def test_routing_hint_address_risk_intent_uses_risk_guard():
+    """양재동 344-7 이 땅 사도 돼? → risk_check chain + 추가 확인 분리 가드."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "양재동 344-7 이 땅 사도 돼?"},
+    ])
+    assert hint is not None
+    assert "bucket=매수 전 리스크 체크" in hint
+    assert "locate__search_address -> locate__get_parcel -> analyze__evaluate_buildability(pnu)" in hint
+    assert "등기/현장/최신 건축물대장" in hint
+    assert "매수 가/불가 단정 금지" in hint
+
+
+def test_routing_hint_pure_address_remains_locate():
+    """주소만 단독으로 — detail/risk 키워드 없으면 기존 locate hint 흐름 유지."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "양재동 344-7"},
+    ])
+    assert hint is not None
+    # tool_preference=locate__search_address 또는 anchor_text + tool_preference 형태
+    assert "tool_preference=locate__search_address" in hint
+    assert "단일 필지 상세 검토" not in hint
+    assert "매수 전 리스크 체크" not in hint
+
+
+def test_routing_hint_existing_buildings_unchanged():
+    """기존 multifamily nearby flow는 유지."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "양재동 344-7 근처 다세대주택"},
+    ])
+    assert hint is not None
+    assert "bucket=기존 건축물 조회" in hint
+    assert "analyze__find_existing_buildings" in hint
+
+
+def test_routing_hint_new_build_candidates_unchanged():
+    """신축 후보 nearby flow는 유지."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "양재동 344-7 근처 다세대주택 신축 후보 필지"},
+    ])
+    assert hint is not None
+    assert "bucket=신축 후보 필지 탐색" in hint
+    assert "analyze__find_parcels -> analyze__evaluate_buildability" in hint

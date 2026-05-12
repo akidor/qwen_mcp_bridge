@@ -36,7 +36,14 @@ export interface ParcelRecord {
   jimok?: string;
   zone?: string;                  // 용도지역
   buildability?: string;          // 기존 ✅/⚠️/❌ 라벨(legacy)
-  building?: ParcelBuilding;
+  /** backend(get_parcel/evaluate/find_existing) raw building dict. shape이 다양해 any. */
+  building?: ParcelBuilding | Record<string, any>;
+  /** find_existing_buildings 결과에서 backend가 직접 매칭한 building.use 텍스트. */
+  matchedUse?: string;
+  /** evaluate_buildability가 산정한 최광로 도로 폭(m). */
+  maxRoadWidthM?: number;
+  /** 건축물대장의 층별 row raw — 표시 시 use/main_use 만 추출. */
+  buildingFloors?: any[];
   regulation?: ParcelRegulationSummary;
   state?: ParcelState;
   stateReason?: string[];         // 왜 그 state인지 — UI에 한 줄씩 노출 가능

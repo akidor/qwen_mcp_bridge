@@ -251,6 +251,13 @@ export default function App() {
       areaM2: card.areaM2,
       jimok: card.jimok,
       pnu: card.pnu,
+      zone: card.zone,
+      state: card.state,
+      stateReason: card.stateReason,
+      matchedUse: card.matchedUse,
+      building: card.building,
+      buildingFloors: card.buildingFloors,
+      maxRoadWidthM: card.maxRoadWidthM,
     });
   }
 
