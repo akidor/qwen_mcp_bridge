@@ -26,6 +26,10 @@ from typing import Any, AsyncIterator
 import httpx
 
 from qwen_mcp_bridge._tool_result import truncate_tool_text
+from qwen_mcp_bridge.visual_filter import (
+    filter_buildable_candidate_result,
+    should_filter_buildable_visual_result,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -299,6 +303,8 @@ async def run_chat_streaming(
                 # 256KB cap만 적용 (필지 집계·POI FeatureCollection·scene_data도 통과). 모델로 가는 텍스트와 별개.
                 _RESULT_TEXT_SSE_CAP = 262144  # 256KB — design.generate_scene scene_data inline용
                 tool_text_for_sse = raw_tool_text
+                if should_filter_buildable_visual_result(name, work):
+                    tool_text_for_sse = filter_buildable_candidate_result(tool_text_for_sse)
                 if len(tool_text_for_sse.encode("utf-8")) > _RESULT_TEXT_SSE_CAP:
                     enc = tool_text_for_sse.encode("utf-8")[:_RESULT_TEXT_SSE_CAP]
                     while enc:

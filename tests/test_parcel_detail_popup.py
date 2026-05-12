@@ -30,4 +30,5 @@ def test_parcel_detail_popup_has_scrollable_layout():
     assert ".parcel-detail-popup" in css
     assert "max-height:" in css
     assert "overflow-y: auto" in css
-    assert ".parcel-popup-grid" in css
+    assert ".parcel-popup-section" in css
+    assert ".parcel-popup-bullets" in css

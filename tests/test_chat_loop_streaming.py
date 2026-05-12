@@ -122,3 +122,71 @@ async def test_tool_call_end_sse_includes_result_text():
     assert "result_text" in body
     # geometry JSON이 텍스트 안에 들어가야 함
     assert "Polygon" in body
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_buildable_candidate_stream_filters_non_buildable_visual_result():
+    result_text = json.dumps({
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": []},
+                "properties": {"pnu": "road", "address": "도로필지", "jimok": "도"},
+            },
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": []},
+                "properties": {"pnu": "site", "address": "대지필지", "jimok": "대"},
+            },
+        ],
+    }, ensure_ascii=False)
+    pool = make_pool_mock_with_tool("analyze__find_parcels", result_text)
+
+    respx.post("http://fake-vllm/v1/chat/completions").mock(
+        side_effect=[
+            httpx.Response(200, text=(
+                'data: {"id":"x","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"analyze__find_parcels","arguments":"{\\"lng\\":127,\\"lat\\":37,\\"radius_m\\":300}"}}]},"finish_reason":null}]}\n\n'
+                'data: {"id":"x","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n\n'
+                'data: [DONE]\n\n'
+            )),
+            httpx.Response(200, text=(
+                'data: {"id":"y","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{"role":"assistant","content":"대지필지 후보입니다."},"finish_reason":null}]}\n\n'
+                'data: {"id":"y","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n'
+                'data: [DONE]\n\n'
+            )),
+        ]
+    )
+
+    chunks: list[bytes] = []
+    async for chunk in run_chat_streaming(
+        messages=[
+            {
+                "role": "system",
+                "content": "post_filter=건축 의도 있음; 지목·용도지역 기준으로 건축 가능 후보를 우선 추천",
+            },
+            {"role": "user", "content": "다세대주택 후보 찾아줘"},
+        ],
+        pool=pool,
+        vllm_base_url="http://fake-vllm/v1",
+        vllm_api_key="x",
+        model="fake-model",
+        max_iterations=5,
+    ):
+        chunks.append(chunk)
+
+    events = []
+    for block in b"".join(chunks).decode("utf-8").split("\n\n"):
+        if not block.startswith("data: "):
+            continue
+        payload = block.removeprefix("data: ").strip()
+        if payload == "[DONE]":
+            continue
+        parsed = json.loads(payload)
+        if parsed.get("type") == "tool_call_end":
+            events.append(parsed)
+
+    assert len(events) == 1
+    visual = json.loads(events[0]["result_text"])
+    assert [f["properties"]["pnu"] for f in visual["features"]] == ["site"]
+    assert visual["visual_filter_applied"]["removed_jimok"] == {"도": 1}
