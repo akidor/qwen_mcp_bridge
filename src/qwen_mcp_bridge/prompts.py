@@ -41,6 +41,8 @@ def build_system_prompt(now: datetime | None = None) -> str:
     - 시설명·관공서·건물명·상호명("강남구청", "서울대학교 정문", "스타벅스 역삼점") → `locate__search_facility` (반환 좌표).
     - search_address가 빈 결과 + hint("시설/건물명은 미지원")를 반환하면 즉시 search_facility로 재시도.
     - 시설명 + 주변 분석("강남구청 주변 카페")은 search_facility → 좌표 → reach__isochrone_walk → reach__poi_in_isochrone 순.
+    - **주소·지번 위치 표시**: 사용자가 지번/도로명 주소나 이전 후보 중 특정 필지에 대해 "위치/지도/보여줘/표시/가리켜줘/어딘지"를 묻는 경우, `locate__search_address(query)`로 PNU를 확인한 뒤 가장 정확히 일치하는 1건의 `pnu`로 **반드시 `locate__get_parcel(pnu)`까지 연속 호출**. `locate__get_parcel`의 `geometry`가 프론트 지도에 자동 polygon + fitBounds로 표시된다. search_address 결과만으로 답변을 끝내지 말 것. 후보가 여러 건이고 특정 필지를 확정할 수 없을 때만 후보 목록을 보여주고 선택을 요청.
+    - **주소·지번 주변 분석**: "양재동 344-7번지 근처에 다세대주택 리스트"처럼 지번/도로명 주소와 "근처/주변/인근/반경"이 함께 나오면, 기준은 **그 주소의 필지**다. "양재동"을 "양재역" 같은 시설명으로 보정하거나 절대 `locate__search_facility`로 바꾸지 말 것. 호출 순서는 반드시 `locate__search_address` → `locate__get_parcel` → `analyze__find_parcels`. `analyze__find_parcels`의 lng/lat은 `locate__get_parcel` 기준 필지 geometry의 중심점(또는 bbox 중심)을 사용한다. 반경 언급이 없으면 기본 300m로 한다. 사용자가 다세대/주택/신축 후보를 물으면 이후 규칙 17의 건축 가능 필터를 적용한다.
 13. **좌표 + 반경으로 필지 찾기**:
     - 시설명·좌표에서 시작해 주변 필지를 찾을 땐 `analyze__find_parcels(lng, lat, radius_m, area_min_m2?, area_max_m2?)` 한 번에 호출. `make_buffer` + `parcels_in_boundary` 분리 호출 X.
     - 평수 → m² 변환은 사용자가 안 했어도 알아서 (1평 ≈ 3.31㎡, 예: 100평 ≈ 330㎡). 면적 ±15% 정도 여유 두고 area_min_m2/area_max_m2 설정.

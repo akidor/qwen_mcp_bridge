@@ -13,6 +13,7 @@ from qwen_mcp_bridge.mcp_pool import McpPool
 from qwen_mcp_bridge.chat_loop import run_chat, MaxIterReached
 from qwen_mcp_bridge.chat_loop_streaming import run_chat_streaming
 from qwen_mcp_bridge.prompts import build_system_prompt
+from qwen_mcp_bridge.query_policy import build_routing_hint
 
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,9 @@ async def chat_completions(request: Request) -> Any:
     # system prompt를 우리 브릿지가 추가. 클라이언트가 보낸 system 메시지가 있으면
     # 두 개를 하나로 병합 — Qwen3.6 chat template는 system이 정확히 1개 (그것도 맨 앞)여야 함.
     bridge_system_content = build_system_prompt()
+    routing_hint = build_routing_hint(user_messages)
+    if routing_hint:
+        bridge_system_content = bridge_system_content + "\n\n" + routing_hint
     if user_messages and user_messages[0].get("role") == "system":
         client_system_content = user_messages[0].get("content") or ""
         rest = user_messages[1:]
