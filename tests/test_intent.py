@@ -23,6 +23,22 @@ def test_address_with_risk_intent_is_risk_check():
     assert classify_intent(_user("이 땅 리스크 봐줘")) == "risk_check"
 
 
+def test_address_with_feasibility_short_form_is_parcel_detail():
+    """짧은 가능성 표현("가능?", "건축 되나?")도 parcel_detail로 잡힌다."""
+    assert classify_intent(_user("양재동 344-7 다세대 가능?")) == "parcel_detail"
+    assert classify_intent(_user("양재동 344-7 건축 되나?")) == "parcel_detail"
+    assert classify_intent(_user("양재동 344-7 지을 수 있어?")) == "parcel_detail"
+    assert classify_intent(_user("양재동 344-7 개발 가능할까?")) == "parcel_detail"
+    assert classify_intent(_user("쌍동리 254-7 건축 가능한지 봐줘")) == "parcel_detail"
+
+
+def test_current_parcel_feasibility_is_parcel_detail():
+    """현재 선택 필지에 대한 가능성 표현도 parcel_detail."""
+    assert classify_intent(_user("이 부지 건축 가능?")) == "parcel_detail"
+    assert classify_intent(_user("이 땅 다세대 가능?")) == "parcel_detail"
+    assert classify_intent(_user("이 필지 지을 수 있어?")) == "parcel_detail"
+
+
 def test_extract_existing_use_hint():
     assert extract_existing_use_hint("양재동 344-7 다세대 가능해?") == "다세대"
     assert extract_existing_use_hint("이 필지 다가구 가능?") == "다가구"

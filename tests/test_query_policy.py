@@ -133,6 +133,69 @@ def test_routing_hint_existing_buildings_unchanged():
     assert "analyze__find_existing_buildings" in hint
 
 
+def test_routing_hint_address_feasibility_short_form_routes_to_detail():
+    """'양재동 344-7 다세대 가능?' 같은 짧은 가능성 표현도 detail chain."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "양재동 344-7 다세대 가능?"},
+    ])
+    assert hint is not None
+    assert "bucket=단일 필지 상세 검토" in hint
+    assert "analyze__evaluate_buildability" in hint
+    assert 'existing_use_hint="다세대"' in hint
+
+
+def test_routing_hint_address_build_되나():
+    hint = build_routing_hint([
+        {"role": "user", "content": "양재동 344-7 건축 되나?"},
+    ])
+    assert hint is not None
+    assert "bucket=단일 필지 상세 검토" in hint
+    assert "analyze__evaluate_buildability(pnu)" in hint
+
+
+def test_routing_hint_address_지을_수_있어():
+    hint = build_routing_hint([
+        {"role": "user", "content": "양재동 344-7 지을 수 있어?"},
+    ])
+    assert hint is not None
+    assert "bucket=단일 필지 상세 검토" in hint
+    assert "analyze__evaluate_buildability" in hint
+
+
+def test_routing_hint_current_parcel_detail_chain():
+    """'이 필지 분석해줘' → current_parcel + evaluate_buildability."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "이 필지 분석해줘"},
+    ])
+    assert hint is not None
+    assert "bucket=현재 선택 필지 상세 검토" in hint
+    assert "anchor_type=current_parcel" in hint
+    assert "analyze__evaluate_buildability" in hint
+    assert "fallback=최근 선택된 필지가 없으면" in hint
+
+
+def test_routing_hint_current_parcel_feasibility_with_use_hint():
+    """'이 땅 다세대 가능?' → current_parcel + existing_use_hint='다세대'."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "이 땅 다세대 가능?"},
+    ])
+    assert hint is not None
+    assert "anchor_type=current_parcel" in hint
+    assert 'existing_use_hint="다세대"' in hint
+
+
+def test_routing_hint_current_parcel_risk_separates_external_verification():
+    """'이 땅 사도 돼?' → current_parcel risk_check + 등기/현장 분리."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "이 땅 사도 돼?"},
+    ])
+    assert hint is not None
+    assert "bucket=현재 선택 필지 매수 전 리스크 체크" in hint
+    assert "anchor_type=current_parcel" in hint
+    assert "analyze__evaluate_buildability" in hint
+    assert "등기/현장/최신 건축물대장" in hint
+
+
 def test_routing_hint_new_build_candidates_unchanged():
     """신축 후보 nearby flow는 유지."""
     hint = build_routing_hint([

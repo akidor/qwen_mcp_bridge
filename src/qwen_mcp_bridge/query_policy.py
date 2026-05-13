@@ -25,8 +25,15 @@ _DISPLAY_RE = re.compile(r"위치|지도|보여|표시|가리켜|어딘지")
 _MULTIFAMILY_RE = re.compile(r"다세대|다가구|공동주택|연립")
 _BUILD_CANDIDATE_RE = re.compile(r"신축|건축|개발|매수|부지|필지|나대지|땅|짓|지을|가능|후보지")
 _CURRENT_PARCEL_RE = re.compile(r"(?:이|현재|선택(?:한|된)?)\s*(?:필지|부지|땅)|여기")
-# 단일 필지 상세 검토 / 매수 리스크 — intent.py와 동기 유지.
-_DETAIL_RE = re.compile(r"분석|상세|검토|가능해|가능한가|어떤\s*땅|이\s*땅|이\s*필지|이\s*부지")
+# 단일 필지 상세 검토 / 매수 리스크 / 가능성 표현 — intent.py와 동기 유지.
+_DETAIL_RE = re.compile(r"분석|상세|검토|어떤\s*땅|이\s*땅|이\s*필지|이\s*부지")
+# 가능성 표현 — DETAIL과 동일 흐름(parcel_detail / address_detail_hint)으로 묶음.
+_FEASIBILITY_RE = re.compile(
+    r"가능해|가능[\?？]|가능한지|가능한가|가능할까|가능합니까|"
+    r"되나[\?？]?|될까[\?？]?|되는지|되는가|"
+    r"지을\s*수|짓\s*을\s*수|"
+    r"건축\s*되나|건축\s*가능|개발\s*가능|신축\s*가능"
+)
 _RISK_RE = re.compile(r"리스크|위험|사도\s*돼|매수.*괜찮|살까|매입.*괜찮|매수.*안전")
 
 
@@ -46,13 +53,21 @@ def build_routing_hint(messages: list[dict[str, Any]]) -> str | None:
         # risk · detail은 nearby보다 우선 — 단, "근처/주변"이 함께 있으면 nearby로 양보.
         if _RISK_RE.search(text) and not _NEARBY_RE.search(text):
             return _address_risk_hint(text, address)
-        if _DETAIL_RE.search(text) and not _NEARBY_RE.search(text):
+        if (_DETAIL_RE.search(text) or _FEASIBILITY_RE.search(text)) and not _NEARBY_RE.search(text):
             return _address_detail_hint(text, address)
         if _NEARBY_RE.search(text):
             return _address_nearby_hint(text, address)
         if _DISPLAY_RE.search(text):
             return _address_display_hint(address)
         return _address_anchor_hint(address)
+
+    # address 없이도 current_parcel 분기 — risk/detail이 nearby보다 우선.
+    if _CURRENT_PARCEL_RE.search(text):
+        if _RISK_RE.search(text):
+            return _current_parcel_risk_hint(text)
+        if _DETAIL_RE.search(text) or _FEASIBILITY_RE.search(text):
+            if not _NEARBY_RE.search(text):
+                return _current_parcel_detail_hint(text)
 
     if _CURRENT_PARCEL_RE.search(text) and _NEARBY_RE.search(text):
         return _current_parcel_hint()
@@ -252,6 +267,42 @@ def _facility_anchor_hint(facility: str) -> str:
         "anchor_type=facility",
         f"anchor_text={facility}",
         "tool_preference=locate__search_facility",
+    ])
+
+
+def _current_parcel_detail_hint(text: str) -> str:
+    """현재 선택 필지 + 분석/가능성 — evaluate_buildability chain."""
+    chain = (
+        "최근 선택된 필지/카드/locate__get_parcel 결과의 pnu -> "
+        + _build_evaluate_call(text)
+    )
+    return "\n".join([
+        *_routing_header(),
+        "bucket=현재 선택 필지 상세 검토",
+        "anchor_type=current_parcel",
+        "anchor_text=최근 선택된 필지 또는 직전 필지 도구 결과",
+        f"required_chain={chain}",
+        "fallback=최근 선택된 필지가 없으면 사용자에게 기준 필지를 물어볼 것",
+        "answer_guard=evaluate_buildability가 결정한 state·state_reason 그대로 인용. 용도지역·지목만으로 '건축 가능' 단정 금지.",
+        "answer_mode=판단 상태 + 평가 사유 3-5개 + 확인 안 된 항목(현장·등기·건축물대장) 분리 표시.",
+    ])
+
+
+def _current_parcel_risk_hint(text: str) -> str:
+    """현재 선택 필지 + 리스크/매수 — evaluate_buildability chain + 외부 확인 분리."""
+    chain = (
+        "최근 선택된 필지/카드/locate__get_parcel 결과의 pnu -> "
+        + _build_evaluate_call(text)
+    )
+    return "\n".join([
+        *_routing_header(),
+        "bucket=현재 선택 필지 매수 전 리스크 체크",
+        "anchor_type=current_parcel",
+        "anchor_text=최근 선택된 필지 또는 직전 필지 도구 결과",
+        f"required_chain={chain}",
+        "fallback=최근 선택된 필지가 없으면 사용자에게 기준 필지를 물어볼 것",
+        "answer_guard=공공데이터 기반 1차 리스크만 말하고, 등기/현장/최신 건축물대장은 '추가 확인 필요'로 분리. 매수 가/불가 단정 금지.",
+        "answer_mode=확인된 리스크(지목·용도지역·도로·기존 건축물) + 추가 확인 필요 항목(등기·현장·최신 건축물대장)을 분리 표시.",
     ])
 
 

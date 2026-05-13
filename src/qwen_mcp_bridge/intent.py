@@ -11,10 +11,13 @@ from typing import Any, Literal
 from qwen_mcp_bridge.query_policy import (
     _BUILD_CANDIDATE_RE,
     _CURRENT_PARCEL_RE,
+    _DETAIL_RE as _QP_DETAIL_RE,
     _DISPLAY_RE,
+    _FEASIBILITY_RE,
     _LIST_RE,
     _MULTIFAMILY_RE,
     _NEARBY_RE,
+    _RISK_RE as _QP_RISK_RE,
     _extract_address_anchor,
     _extract_facility_anchor,
     _last_user_text,
@@ -40,9 +43,13 @@ ALL_INTENTS: tuple[IntentLabel, ...] = (
     "general",
 )
 
-_RISK_RE = re.compile(r"리스크|위험|사도\s*돼|매수.*괜찮|살까|매입.*괜찮|매수.*안전")
-# 단일 필지 상세 검토 — "분석/상세/검토/가능해/가능한가/이 땅/이 필지/이 부지".
-_DETAIL_RE = re.compile(r"분석|상세|검토|가능해|가능한가|어떤\s*땅|이\s*땅|이\s*필지|이\s*부지")
+# query_policy와 동기 유지 — 단일 source of truth는 query_policy 모듈.
+_RISK_RE = _QP_RISK_RE
+# 단일 필지 상세/가능성 의도 — DETAIL + FEASIBILITY 결합.
+_DETAIL_OR_FEASIBILITY_RE = re.compile(
+    f"(?:{_QP_DETAIL_RE.pattern})|(?:{_FEASIBILITY_RE.pattern})"
+)
+_DETAIL_RE = _DETAIL_OR_FEASIBILITY_RE  # 하위 호환 alias
 # "다세대 가능?" "근생 가능해?" 같이 building 용도 의도 표현 — evaluate_buildability의
 # existing_use_hint 파라미터 추출에 쓰임. classify_intent 자체에는 영향 없음.
 _USE_HINT_RES: tuple[tuple[str, re.Pattern], ...] = (

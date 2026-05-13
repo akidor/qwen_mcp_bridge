@@ -505,7 +505,11 @@ function buildParcelDetailContent(
   const errors = detail.external?.errors ?? [];
   if (!hasRows) {
     const sect = appendSection(root, "📋 토지이용·규제");
-    sect.appendChild(createNode("div", "parcel-popup-muted", "해당 필지에 표시할 규제 정보가 없습니다."));
+    // errors가 있으면 부분 실패. 없으면 외부 API가 응답은 했으나 결과가 비어 있던 경우.
+    const msg = errors.length
+      ? `⚠️ 상세 규제 조회 실패: ${errors.join(" · ")}`
+      : "외부 토지이용·규제 응답에 표시 가능한 항목이 없습니다.";
+    sect.appendChild(createNode("div", "parcel-popup-muted", msg));
   } else if (errors.length) {
     // 부분 실패: 섹션 끝에 muted 추가
     const last = root.lastElementChild;
@@ -1250,7 +1254,7 @@ export function focusParcel(
       console.warn("[focusParcel] fitBounds failed:", e);
     }
   }
-  // 상세 popup — backend state/reason/building까지 포함한 glass-card detail.
+  // 상세 popup — backend state/reason/building 즉시 표시 + 외부 plan/actions는 비동기 로드.
   try {
     if (_focusPopup) _focusPopup.remove();
     if (feature.address && bbox) {
@@ -1269,16 +1273,44 @@ export function focusParcel(
         building_floors: feature.buildingFloors,
         max_road_width_m: feature.maxRoadWidthM,
       };
-      // wmsapi 외부 호출 없이도 backend 판단 정보를 바로 보여주려고 detail content 사용.
-      // 외부 plan/actions는 detail.status를 'error'로 두면 부드럽게 폴백.
-      const wrap = buildParcelDetailContent(props, { status: "ready", external: { errors: [] } });
+      const pnu = textOf(props.pnu);
+      // 1) loading 상태로 즉시 popup 표시 — state·reason·building 섹션은 buildParcelDetailContent가
+      //    detail.status와 무관하게 항상 먼저 렌더링한다.
+      const initialDetail: Parameters<typeof buildParcelDetailContent>[1] = pnu
+        ? { status: "loading" }
+        : { status: "ready", external: { errors: [] } };
+      const wrap = buildParcelDetailContent(props, initialDetail);
       _focusPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, offset: 8, maxWidth: "380px" })
         .setLngLat([cx, cy])
         .setDOMContent(wrap)
         .addTo(map);
-      const el = _focusPopup.getElement();
+      const popup = _focusPopup;
+      const el = popup.getElement();
       el?.classList.add("parcel-popup-wrap");
       el?.classList.add("parcel-detail-popup-wrap");
+
+      // 2) pnu가 있으면 외부 토지이용·규제 비동기 조회 후 popup 갱신.
+      if (pnu) {
+        fetchParcelExternalDetails(pnu)
+          .then((external) => {
+            // 도중 다른 popup으로 교체됐으면 stale 업데이트 무시.
+            if (_focusPopup !== popup) return;
+            popup.setDOMContent(buildParcelDetailContent(props, { status: "ready", external }));
+            const after = popup.getElement();
+            after?.classList.add("parcel-popup-wrap");
+            after?.classList.add("parcel-detail-popup-wrap");
+          })
+          .catch((err) => {
+            if (_focusPopup !== popup) return;
+            popup.setDOMContent(buildParcelDetailContent(props, {
+              status: "error",
+              error: err instanceof Error ? err.message : String(err),
+            }));
+            const after = popup.getElement();
+            after?.classList.add("parcel-popup-wrap");
+            after?.classList.add("parcel-detail-popup-wrap");
+          });
+      }
     }
   } catch (e) {
     console.warn("[focusParcel] popup failed:", e);
