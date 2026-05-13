@@ -6,6 +6,7 @@
 export type IntentLabel =
   | "locate_show"
   | "existing_buildings"
+  | "existing_building_stats"
   | "new_build_candidates"
   | "parcel_detail"
   | "risk_check"
@@ -45,6 +46,18 @@ export function shouldRenderToolResult(
   if (intent === "existing_buildings") {
     // 중간 후보 집합 도구는 skip — 확인된 기존 건축물만 chat 카드/지도로.
     if (toolName === "analyze__find_parcels" || toolName === "locate__parcels_in_boundary") {
+      return false;
+    }
+  }
+  if (intent === "existing_building_stats") {
+    // 통계 의도는 지도 위 후보 리스트가 본문이 아님.
+    // find_parcels / find_existing_buildings의 features는 시각화를 억제.
+    // examples 5건 정도는 backend에서 따로 보내므로 카드/팝업으로만 노출.
+    if (
+      toolName === "analyze__find_parcels" ||
+      toolName === "locate__parcels_in_boundary" ||
+      toolName === "analyze__find_existing_buildings"
+    ) {
       return false;
     }
   }

@@ -196,6 +196,29 @@ def test_routing_hint_current_parcel_risk_separates_external_verification():
     assert "등기/현장/최신 건축물대장" in hint
 
 
+def test_routing_hint_existing_stats_uses_statistics_tool():
+    """multifamily nearby + 통계 → analyze__existing_building_statistics chain."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "양재동 344-7번지 기준 반경 300m 내 다세대주택 통계치"},
+    ])
+    assert hint is not None
+    assert "bucket=기존 건축물 통계 조회" in hint
+    assert "analyze__existing_building_statistics" in hint
+    # find_existing_buildings 후보 리스트 도구는 chain에서 사용되지 않아야 함.
+    assert "analyze__find_existing_buildings" not in hint
+    assert "후보 리스트가 아니라 통계가 본문" in hint
+
+
+def test_routing_hint_existing_list_unchanged():
+    """리스트 키워드는 find_existing_buildings 유지."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "양재동 344-7번지 근처 다세대주택 리스트"},
+    ])
+    assert hint is not None
+    assert "analyze__find_existing_buildings" in hint
+    assert "analyze__existing_building_statistics" not in hint
+
+
 def test_routing_hint_new_build_candidates_unchanged():
     """신축 후보 nearby flow는 유지."""
     hint = build_routing_hint([

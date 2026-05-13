@@ -39,6 +39,28 @@ def test_current_parcel_feasibility_is_parcel_detail():
     assert classify_intent(_user("이 필지 지을 수 있어?")) == "parcel_detail"
 
 
+def test_stats_intent_for_address_with_stats_keywords():
+    """주소 + multifamily + 통계 → existing_building_stats."""
+    from qwen_mcp_bridge.intent import classify_intent
+    cases = [
+        "양재동 344-7번지 기준 반경 300m 내 다세대주택 통계치",
+        "양재동 344-7 반경 300m 다세대 몇 개야?",
+        "양재동 344-7 근처 주택 유형별 분포 뽑아줘",
+    ]
+    for q in cases:
+        assert classify_intent(_user(q)) == "existing_building_stats", q
+
+
+def test_list_intent_remains_existing_buildings():
+    """리스트/찾기 키워드는 stats가 아니라 existing_buildings."""
+    assert classify_intent(_user("양재동 344-7번지 근처 다세대주택 리스트")) == "existing_buildings"
+    assert classify_intent(_user("양재동 344-7번지 근처 다세대주택 찾아줘")) == "existing_buildings"
+
+
+def test_current_parcel_stats_intent():
+    assert classify_intent(_user("이 필지 주변 다세대/다가구 현황")) == "existing_building_stats"
+
+
 def test_extract_existing_use_hint():
     assert extract_existing_use_hint("양재동 344-7 다세대 가능해?") == "다세대"
     assert extract_existing_use_hint("이 필지 다가구 가능?") == "다가구"
@@ -74,7 +96,9 @@ def test_current_parcel_with_detail_is_parcel_detail():
 
 
 def test_current_parcel_nearby_is_nearby_context():
-    assert classify_intent(_user("이 필지 주변 다세대 분포")) == "nearby_context"
+    # "분포" 같은 통계 키워드가 없으면 nearby_context 유지.
+    assert classify_intent(_user("이 필지 주변 다세대주택")) == "nearby_context"
+    # 분포/통계가 있으면 existing_building_stats로 격상됨(별 테스트에서 검증).
 
 
 def test_risk_check():

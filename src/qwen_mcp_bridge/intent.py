@@ -18,24 +18,27 @@ from qwen_mcp_bridge.query_policy import (
     _MULTIFAMILY_RE,
     _NEARBY_RE,
     _RISK_RE as _QP_RISK_RE,
+    _STATS_RE,
     _extract_address_anchor,
     _extract_facility_anchor,
     _last_user_text,
 )
 
 IntentLabel = Literal[
-    "locate_show",          # 위치/지도 표시
-    "existing_buildings",   # 주변 기존 건축물 조회 (다세대·다가구 등)
-    "new_build_candidates", # 신축 후보 필지 탐색
-    "parcel_detail",        # 단일 필지 상세 검토
-    "risk_check",           # 매수 전 리스크 체크
-    "nearby_context",       # 주변 입지·도달권·POI
-    "general",              # 위 어디에도 매핑되지 않는 일반 질의
+    "locate_show",                # 위치/지도 표시
+    "existing_buildings",         # 주변 기존 건축물 후보 리스트 조회
+    "existing_building_stats",    # 주변 기존 건축물 통계/분포/현황 (리스트 아님)
+    "new_build_candidates",       # 신축 후보 필지 탐색
+    "parcel_detail",              # 단일 필지 상세 검토
+    "risk_check",                 # 매수 전 리스크 체크
+    "nearby_context",             # 주변 입지·도달권·POI
+    "general",                    # 위 어디에도 매핑되지 않는 일반 질의
 ]
 
 ALL_INTENTS: tuple[IntentLabel, ...] = (
     "locate_show",
     "existing_buildings",
+    "existing_building_stats",
     "new_build_candidates",
     "parcel_detail",
     "risk_check",
@@ -99,7 +102,12 @@ def classify_intent(messages: list[dict[str, Any]]) -> IntentLabel:
             if _BUILD_CANDIDATE_RE.search(text):
                 return "new_build_candidates"
             if _MULTIFAMILY_RE.search(text):
+                # multifamily + 통계 의도면 existing_building_stats.
+                if _STATS_RE.search(text):
+                    return "existing_building_stats"
                 return "existing_buildings"
+            if _STATS_RE.search(text):
+                return "existing_building_stats"
             return "nearby_context"
         # 주소 anchor 있고 nearby 없을 때:
         # "분석/상세/검토/가능해" 등 분석 의도가 있으면 parcel_detail (locate_show가 아님).
@@ -111,6 +119,9 @@ def classify_intent(messages: list[dict[str, Any]]) -> IntentLabel:
         return "locate_show"
 
     if is_current_parcel and _NEARBY_RE.search(text):
+        # 현재 필지 주변 + 통계 의도 → existing_building_stats.
+        if _STATS_RE.search(text):
+            return "existing_building_stats"
         return "nearby_context"
 
     facility = _extract_facility_anchor(text)
@@ -118,7 +129,11 @@ def classify_intent(messages: list[dict[str, Any]]) -> IntentLabel:
         if _BUILD_CANDIDATE_RE.search(text):
             return "new_build_candidates"
         if _MULTIFAMILY_RE.search(text):
+            if _STATS_RE.search(text):
+                return "existing_building_stats"
             return "existing_buildings"
+        if _STATS_RE.search(text):
+            return "existing_building_stats"
         if _LIST_RE.search(text):
             return "nearby_context"
         return "nearby_context"

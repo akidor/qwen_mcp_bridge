@@ -25,6 +25,16 @@ _DISPLAY_RE = re.compile(r"위치|지도|보여|표시|가리켜|어딘지")
 _MULTIFAMILY_RE = re.compile(r"다세대|다가구|공동주택|연립")
 _BUILD_CANDIDATE_RE = re.compile(r"신축|건축|개발|매수|부지|필지|나대지|땅|짓|지을|가능|후보지")
 _CURRENT_PARCEL_RE = re.compile(r"(?:이|현재|선택(?:한|된)?)\s*(?:필지|부지|땅)|여기")
+# 통계/분포/현황 의도 — existing_building_stats 분기 트리거.
+_STATS_RE = re.compile(
+    r"통계치|통계|분포|현황|"
+    r"몇\s*개|개수|"
+    r"비율|비중|"
+    r"집계|요약|"
+    r"평균|중앙값|합계|총\s*몇|"
+    r"밀도|구성"
+)
+
 # 단일 필지 상세 검토 / 매수 리스크 / 가능성 표현 — intent.py와 동기 유지.
 _DETAIL_RE = re.compile(r"분석|상세|검토|어떤\s*땅|이\s*땅|이\s*필지|이\s*부지")
 # 가능성 표현 — DETAIL과 동일 흐름(parcel_detail / address_detail_hint)으로 묶음.
@@ -118,6 +128,8 @@ def _routing_header() -> list[str]:
 
 
 def _address_nearby_hint(text: str, address: str) -> str:
+    if _is_existing_multifamily_search(text) and _STATS_RE.search(text):
+        return _existing_stats_hint(text, "address", address, "300")
     if _is_existing_multifamily_search(text):
         return _existing_multifamily_address_hint(text, address)
 
@@ -141,6 +153,35 @@ def _address_nearby_hint(text: str, address: str) -> str:
     if build_intent:
         lines.append("post_filter=건축 의도 있음; evaluate_buildability가 결정한 state 라벨 그대로 인용 (단정 금지)")
         lines.append("answer_guard=용도지역만으로 건축 가능 단정 금지")
+    return "\n".join(lines)
+
+
+def _existing_stats_hint(text: str, anchor_type: str, anchor_text: str, radius: str) -> str:
+    """existing_building_stats — 후보 리스트 대신 통계 도구를 호출."""
+    if anchor_type == "address":
+        chain = (
+            "locate__search_address -> locate__get_parcel -> "
+            f"analyze__existing_building_statistics(lng, lat, radius_m={radius}, "
+            "use_keywords=[다세대주택,다가구주택,공동주택,연립주택])"
+        )
+    else:
+        chain = (
+            "locate__search_facility -> "
+            f"analyze__existing_building_statistics(lng, lat, radius_m={radius}, "
+            "use_keywords=[다세대주택,다가구주택,공동주택,연립주택])"
+        )
+    lines = [
+        *_routing_header(),
+        "bucket=기존 건축물 통계 조회",
+        f"anchor_type={anchor_type}",
+        f"anchor_text={anchor_text}",
+        f"required_chain={chain}",
+        f"radius_m={radius}",
+        "visual_suppress=intermediate_parcel_candidates",
+        "answer_mode=use_counts 표 + matched_buildings 합계 + area_stats(평균·중앙값) + examples 3-5건 (후보 6개 리스트로 답하지 말 것)",
+        "answer_guard=후보 리스트가 아니라 통계가 본문. examples는 참고용 부록.",
+    ]
+    lines.extend(_area_lines(text))
     return "\n".join(lines)
 
 
@@ -225,6 +266,8 @@ def _address_risk_hint(text: str, address: str) -> str:
 
 def _facility_nearby_hint(text: str, facility: str) -> str:
     radius = "300" if facility.endswith("역") else "500"
+    if _is_existing_multifamily_search(text) and _STATS_RE.search(text):
+        return _existing_stats_hint(text, "facility", facility, radius)
     if _is_existing_multifamily_search(text):
         lines = [
             *_routing_header(),

@@ -698,6 +698,7 @@ const TOOL_PRETTY: Record<string, string> = {
   // analyze
   "analyze__find_parcels": "🔍 필지 찾기",
   "analyze__find_existing_buildings": "🏘️ 기존 건축물",
+  "analyze__existing_building_statistics": "📊 건축물 통계",
   "analyze__evaluate_buildability": "🧮 신축 평가",
   "analyze__parcel_aggregation": "📊 필지 집계",
   // simulate
