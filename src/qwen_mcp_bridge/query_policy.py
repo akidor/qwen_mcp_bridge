@@ -80,6 +80,9 @@ def build_routing_hint(messages: list[dict[str, Any]]) -> str | None:
                 return _current_parcel_detail_hint(text)
 
     if _CURRENT_PARCEL_RE.search(text) and _NEARBY_RE.search(text):
+        # 통계 의도면 stats hint, 아니면 기본 current_parcel nearby hint.
+        if _STATS_RE.search(text):
+            return _current_parcel_stats_hint(text)
         return _current_parcel_hint()
 
     facility = _extract_facility_anchor(text)
@@ -347,6 +350,32 @@ def _current_parcel_risk_hint(text: str) -> str:
         "answer_guard=공공데이터 기반 1차 리스크만 말하고, 등기/현장/최신 건축물대장은 '추가 확인 필요'로 분리. 매수 가/불가 단정 금지.",
         "answer_mode=확인된 리스크(지목·용도지역·도로·기존 건축물) + 추가 확인 필요 항목(등기·현장·최신 건축물대장)을 분리 표시.",
     ])
+
+
+def _current_parcel_stats_hint(text: str) -> str:
+    """현재 선택 필지 + 주변 + 통계 — existing_building_statistics chain.
+
+    chain: 최근 선택 필지의 geometry 중심점 → analyze__existing_building_statistics.
+    """
+    chain = (
+        "최근 선택된 필지/카드/locate__get_parcel 결과의 geometry 중심점 -> "
+        "analyze__existing_building_statistics(lng, lat, radius_m=300, "
+        "use_keywords=[다세대주택,다가구주택,공동주택,연립주택])"
+    )
+    lines = [
+        *_routing_header(),
+        "bucket=기존 건축물 통계 조회",
+        "anchor_type=current_parcel",
+        "anchor_text=최근 선택된 필지 또는 직전 필지 도구 결과",
+        f"required_chain={chain}",
+        "fallback=최근 선택된 필지가 없으면 사용자에게 기준 필지를 물어볼 것",
+        "radius_m=300",
+        "visual_suppress=intermediate_parcel_candidates",
+        "answer_mode=use_counts 표 + matched_buildings 합계 + area_stats(평균·중앙값) + examples 3-5건 (후보 리스트로 답하지 말 것)",
+        "answer_guard=후보 리스트가 아니라 통계가 본문. examples는 참고용 부록.",
+    ]
+    lines.extend(_area_lines(text))
+    return "\n".join(lines)
 
 
 def _current_parcel_hint() -> str:

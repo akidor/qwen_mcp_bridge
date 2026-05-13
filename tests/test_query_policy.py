@@ -209,6 +209,28 @@ def test_routing_hint_existing_stats_uses_statistics_tool():
     assert "후보 리스트가 아니라 통계가 본문" in hint
 
 
+def test_routing_hint_current_parcel_stats_chain():
+    """current_parcel + 주변 + 통계 의도 → existing_building_statistics chain."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "이 필지 주변 다세대/다가구 현황"},
+    ])
+    assert hint is not None
+    assert "bucket=기존 건축물 통계 조회" in hint
+    assert "anchor_type=current_parcel" in hint
+    assert "analyze__existing_building_statistics" in hint
+    assert "fallback=최근 선택된 필지가 없으면" in hint
+
+
+def test_routing_hint_current_parcel_nearby_without_stats_unchanged():
+    """통계 키워드 없으면 기존 current_parcel nearby hint 유지."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "이 필지 주변 인접 필지 찾아줘"},
+    ])
+    assert hint is not None
+    assert "anchor_type=current_parcel" in hint
+    assert "analyze__existing_building_statistics" not in hint
+
+
 def test_routing_hint_existing_list_unchanged():
     """리스트 키워드는 find_existing_buildings 유지."""
     hint = build_routing_hint([
