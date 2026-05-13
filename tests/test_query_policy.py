@@ -209,6 +209,19 @@ def test_routing_hint_existing_stats_uses_statistics_tool():
     assert "후보 리스트가 아니라 통계가 본문" in hint
 
 
+def test_routing_hint_existing_stats_understands_how_many_wording():
+    """'얼마나 있어?'는 후보 리스트가 아니라 통계 조회로 라우팅."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "문정동 118-15 근처에 다세대주택 얼마나 있어?"},
+    ])
+    assert hint is not None
+    assert "bucket=기존 건축물 통계 조회" in hint
+    assert "anchor_text=문정동 118-15" in hint
+    assert "analyze__existing_building_statistics" in hint
+    assert "probe_n=400" in hint
+    assert "analyze__find_existing_buildings" not in hint
+
+
 def test_routing_hint_current_parcel_stats_chain():
     """current_parcel + 주변 + 통계 의도 → existing_building_statistics chain."""
     hint = build_routing_hint([
@@ -249,3 +262,42 @@ def test_routing_hint_new_build_candidates_unchanged():
     assert hint is not None
     assert "bucket=신축 후보 필지 탐색" in hint
     assert "analyze__find_parcels -> analyze__evaluate_buildability" in hint
+
+
+def test_routing_hint_followup_filters_previous_existing_building_result():
+    """'다세대주택만 추려봐' 같은 후속 질의는 직전 기준지/반경을 유지."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "문정동 118-15 근처에 다세대주택 얼마나 있어?"},
+        {"role": "assistant", "content": "반경 300m 내 기존 주거 건축물 통계입니다."},
+        {"role": "user", "content": "다세대주택만 추려봐"},
+    ])
+
+    assert hint is not None
+    assert "bucket=직전 기준 기존 건축물 필터" in hint
+    assert "anchor_type=previous_context" in hint
+    assert "anchor_text=문정동 118-15" in hint
+    assert "use_keywords=[다세대주택]" in hint
+    assert "analyze__find_existing_buildings" in hint
+    assert "probe_n=400" in hint
+    assert "top_n=100" in hint
+
+
+def test_routing_hint_followup_visualizes_previous_filtered_result():
+    """'시각화만 해봐'는 말로만 표시하지 않고 geometry 반환 도구를 재호출."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "문정동 118-15 근처에 다세대주택 얼마나 있어?"},
+        {"role": "assistant", "content": "반경 300m 내 기존 주거 건축물 통계입니다."},
+        {"role": "user", "content": "다세대주택만 추려봐"},
+        {"role": "assistant", "content": "다세대주택만 추리면 60개소입니다."},
+        {"role": "user", "content": "아니 시각화만 해봐"},
+    ])
+
+    assert hint is not None
+    assert "bucket=직전 결과 시각화" in hint
+    assert "anchor_type=previous_context" in hint
+    assert "anchor_text=문정동 118-15" in hint
+    assert "visual_required=true" in hint
+    assert "use_keywords=[다세대주택]" in hint
+    assert "analyze__find_existing_buildings" in hint
+    assert "probe_n=400" in hint
+    assert "top_n=100" in hint

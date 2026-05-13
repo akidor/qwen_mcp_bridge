@@ -20,7 +20,10 @@ from qwen_mcp_bridge.query_policy import (
     _RISK_RE as _QP_RISK_RE,
     _STATS_RE,
     _extract_address_anchor,
+    _extract_existing_use_filter,
     _extract_facility_anchor,
+    _has_previous_existing_context,
+    _is_visualize_followup,
     _last_user_text,
 )
 
@@ -123,6 +126,10 @@ def classify_intent(messages: list[dict[str, Any]]) -> IntentLabel:
         if _STATS_RE.search(text):
             return "existing_building_stats"
         return "nearby_context"
+
+    if _has_previous_existing_context(messages):
+        if _extract_existing_use_filter(text) or _is_visualize_followup(text):
+            return "existing_buildings"
 
     facility = _extract_facility_anchor(text)
     if facility and _NEARBY_RE.search(text):

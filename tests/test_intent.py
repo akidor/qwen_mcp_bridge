@@ -46,6 +46,7 @@ def test_stats_intent_for_address_with_stats_keywords():
         "양재동 344-7번지 기준 반경 300m 내 다세대주택 통계치",
         "양재동 344-7 반경 300m 다세대 몇 개야?",
         "양재동 344-7 근처 주택 유형별 분포 뽑아줘",
+        "문정동 118-15 근처에 다세대주택 얼마나 있어?",
     ]
     for q in cases:
         assert classify_intent(_user(q)) == "existing_building_stats", q
@@ -99,6 +100,19 @@ def test_current_parcel_nearby_is_nearby_context():
     # "분포" 같은 통계 키워드가 없으면 nearby_context 유지.
     assert classify_intent(_user("이 필지 주변 다세대주택")) == "nearby_context"
     # 분포/통계가 있으면 existing_building_stats로 격상됨(별 테스트에서 검증).
+
+
+def test_existing_building_followup_intents_use_previous_context():
+    messages = [
+        {"role": "user", "content": "문정동 118-15 근처에 다세대주택 얼마나 있어?"},
+        {"role": "assistant", "content": "반경 300m 내 기존 주거 건축물 통계입니다."},
+        {"role": "user", "content": "다세대주택만 추려봐"},
+    ]
+    assert classify_intent(messages) == "existing_buildings"
+
+    messages.append({"role": "assistant", "content": "다세대주택만 추리면 60개소입니다."})
+    messages.append({"role": "user", "content": "아니 시각화만 해봐"})
+    assert classify_intent(messages) == "existing_buildings"
 
 
 def test_risk_check():

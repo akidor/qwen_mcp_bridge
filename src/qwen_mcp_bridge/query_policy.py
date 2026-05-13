@@ -25,13 +25,19 @@ _DISPLAY_RE = re.compile(r"위치|지도|보여|표시|가리켜|어딘지")
 _MULTIFAMILY_RE = re.compile(r"다세대|다가구|공동주택|연립")
 _BUILD_CANDIDATE_RE = re.compile(r"신축|건축|개발|매수|부지|필지|나대지|땅|짓|지을|가능|후보지")
 _CURRENT_PARCEL_RE = re.compile(r"(?:이|현재|선택(?:한|된)?)\s*(?:필지|부지|땅)|여기")
+_RADIUS_M_RE = re.compile(r"(?P<radius>\d{2,4}(?:\.\d+)?)\s*(?:m|미터)")
+_RADIUS_KM_RE = re.compile(r"(?P<radius>\d(?:\.\d+)?)\s*(?:km|킬로)")
+_VISUALIZE_FOLLOWUP_RE = re.compile(r"시각화|지도|마커|표시|띄워|그려")
+_FOLLOWUP_FILTER_ACTION_RE = re.compile(r"만|추려|필터|골라|보여|표시|목록|리스트|시각화|지도")
+_USE_FILTER_RE = re.compile(r"다세대주택|다세대|다가구주택|다가구|공동주택|연립주택|연립")
 # 통계/분포/현황 의도 — existing_building_stats 분기 트리거.
 _STATS_RE = re.compile(
     r"통계치|통계|분포|현황|"
-    r"몇\s*개|개수|"
+    r"몇\s*개|몇\s*곳|몇\s*동|몇\s*필지|개수|"
     r"비율|비중|"
     r"집계|요약|"
-    r"평균|중앙값|합계|총\s*몇|"
+    r"평균|중앙값|합계|총\s*몇|총량|수량|카운트|"
+    r"얼마나(?:\s*있|야|인가|인지)?|"
     r"밀도|구성"
 )
 
@@ -85,6 +91,14 @@ def build_routing_hint(messages: list[dict[str, Any]]) -> str | None:
             return _current_parcel_stats_hint(text)
         return _current_parcel_hint()
 
+    use_filter = _extract_existing_use_filter(text)
+    if use_filter and _previous_existing_context(messages):
+        return _previous_existing_filter_hint(messages, use_filter)
+
+    if _is_visualize_followup(text) and _previous_existing_context(messages):
+        previous_use = _previous_existing_use_filter(messages) or ["다세대주택", "다가구주택", "공동주택", "연립주택"]
+        return _previous_existing_visualization_hint(messages, previous_use)
+
     facility = _extract_facility_anchor(text)
     if facility:
         if _NEARBY_RE.search(text) and _LIST_RE.search(text):
@@ -104,6 +118,13 @@ def _last_user_text(messages: list[dict[str, Any]]) -> str:
     return ""
 
 
+def _messages_before_latest_user(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    for idx in range(len(messages) - 1, -1, -1):
+        if messages[idx].get("role") == "user":
+            return messages[:idx]
+    return []
+
+
 def _extract_address_anchor(text: str) -> str | None:
     for pattern in (_JIBUN_RE, _ROAD_RE):
         match = pattern.search(text)
@@ -121,6 +142,107 @@ def _extract_facility_anchor(text: str) -> str | None:
 
 def _clean_anchor(anchor: str) -> str:
     return re.sub(r"\s+", " ", anchor).strip()
+
+
+def _canonical_existing_use(value: str) -> str:
+    if "다세대" in value:
+        return "다세대주택"
+    if "다가구" in value:
+        return "다가구주택"
+    if "연립" in value:
+        return "연립주택"
+    if "공동" in value:
+        return "공동주택"
+    return value
+
+
+def _extract_existing_use_filter(text: str, *, allow_plain: bool = False) -> list[str] | None:
+    match = _USE_FILTER_RE.search(text)
+    if not match:
+        return None
+    if not allow_plain and not _FOLLOWUP_FILTER_ACTION_RE.search(text):
+        return None
+    return [_canonical_existing_use(match.group(0))]
+
+
+def _is_visualize_followup(text: str) -> bool:
+    return bool(_VISUALIZE_FOLLOWUP_RE.search(text))
+
+
+def _has_previous_existing_context(messages: list[dict[str, Any]]) -> bool:
+    return _previous_existing_context(messages) is not None
+
+
+def _previous_existing_context(messages: list[dict[str, Any]]) -> dict[str, str] | None:
+    previous = _messages_before_latest_user(messages)
+    if not previous:
+        return None
+
+    anchor_type = ""
+    anchor_text = ""
+    for message in reversed(previous):
+        if message.get("role") != "user":
+            continue
+        content = message.get("content") or ""
+        if not isinstance(content, str):
+            continue
+        address = _extract_address_anchor(content)
+        if address:
+            anchor_type = "address"
+            anchor_text = address
+            break
+        facility = _extract_facility_anchor(content)
+        if facility:
+            anchor_type = "facility"
+            anchor_text = facility
+            break
+
+    if not anchor_text:
+        return None
+
+    previous_text = "\n".join(
+        m.get("content") or ""
+        for m in previous
+        if isinstance(m.get("content"), str)
+    )
+    if not (
+        _MULTIFAMILY_RE.search(previous_text)
+        or "기존 건축물" in previous_text
+        or "matched_buildings" in previous_text
+        or "use_counts" in previous_text
+    ):
+        return None
+
+    return {
+        "anchor_type": anchor_type,
+        "anchor_text": anchor_text,
+        "radius": _previous_radius(previous_text) or "300",
+    }
+
+
+def _previous_radius(text: str) -> str | None:
+    km_match = _RADIUS_KM_RE.search(text)
+    if km_match:
+        return str(int(float(km_match.group("radius")) * 1000))
+    m_match = _RADIUS_M_RE.search(text)
+    if m_match:
+        return str(int(float(m_match.group("radius"))))
+    return None
+
+
+def _previous_existing_use_filter(messages: list[dict[str, Any]]) -> list[str] | None:
+    for message in reversed(_messages_before_latest_user(messages)):
+        content = message.get("content") or ""
+        if not isinstance(content, str):
+            continue
+        uses = _extract_existing_use_filter(content, allow_plain=True)
+        if uses:
+            return uses
+    return None
+
+
+def _format_use_keywords(uses: list[str]) -> str:
+    return "[" + ",".join(uses) + "]"
 
 
 def _routing_header() -> list[str]:
@@ -165,13 +287,13 @@ def _existing_stats_hint(text: str, anchor_type: str, anchor_text: str, radius: 
         chain = (
             "locate__search_address -> locate__get_parcel -> "
             f"analyze__existing_building_statistics(lng, lat, radius_m={radius}, "
-            "use_keywords=[다세대주택,다가구주택,공동주택,연립주택])"
+            "use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n=400, examples_n=5)"
         )
     else:
         chain = (
             "locate__search_facility -> "
             f"analyze__existing_building_statistics(lng, lat, radius_m={radius}, "
-            "use_keywords=[다세대주택,다가구주택,공동주택,연립주택])"
+            "use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n=400, examples_n=5)"
         )
     lines = [
         *_routing_header(),
@@ -181,7 +303,7 @@ def _existing_stats_hint(text: str, anchor_type: str, anchor_text: str, radius: 
         f"required_chain={chain}",
         f"radius_m={radius}",
         "visual_suppress=intermediate_parcel_candidates",
-        "answer_mode=use_counts 표 + matched_buildings 합계 + area_stats(평균·중앙값) + examples 3-5건 (후보 6개 리스트로 답하지 말 것)",
+        "answer_mode=use_counts 표 + matched_buildings 합계 + coverage/probe_n + area_stats(평균·중앙값) + examples 3-5건 (후보 6개 리스트로 답하지 말 것)",
         "answer_guard=후보 리스트가 아니라 통계가 본문. examples는 참고용 부록.",
     ]
     lines.extend(_area_lines(text))
@@ -196,7 +318,7 @@ def _existing_multifamily_address_hint(text: str, address: str) -> str:
         f"anchor_text={address}",
         "existing_use=다세대주택",
         "locate__search_facility 금지: 지번/번지/도로명 주소가 명시됐으므로 역명·시설명으로 보정하지 말 것.",
-        "required_chain=locate__search_address -> locate__get_parcel -> analyze__find_existing_buildings(lng, lat, radius_m, use_keywords=[다세대주택,다가구주택,공동주택,연립주택])",
+        "required_chain=locate__search_address -> locate__get_parcel -> analyze__find_existing_buildings(lng, lat, radius_m, use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n=400, top_n=100)",
         "find_existing_origin=locate__get_parcel geometry 중심점 또는 bbox 중심",
         "radius_m=300",
         "visual_suppress=intermediate_parcel_candidates",
@@ -278,7 +400,7 @@ def _facility_nearby_hint(text: str, facility: str) -> str:
             "anchor_type=facility",
             f"anchor_text={facility}",
             "existing_use=다세대주택",
-            "required_chain=locate__search_facility -> analyze__find_existing_buildings(lng, lat, radius_m, use_keywords=[다세대주택,다가구주택,공동주택,연립주택])",
+            "required_chain=locate__search_facility -> analyze__find_existing_buildings(lng, lat, radius_m, use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n=400, top_n=100)",
             f"radius_m={radius}",
             "visual_suppress=intermediate_parcel_candidates",
             "answer_guard=find_existing_buildings 결과 features의 state=confirmed_existing_building 항목만 답변 카드로 사용",
@@ -360,7 +482,7 @@ def _current_parcel_stats_hint(text: str) -> str:
     chain = (
         "최근 선택된 필지/카드/locate__get_parcel 결과의 geometry 중심점 -> "
         "analyze__existing_building_statistics(lng, lat, radius_m=300, "
-        "use_keywords=[다세대주택,다가구주택,공동주택,연립주택])"
+        "use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n=400, examples_n=5)"
     )
     lines = [
         *_routing_header(),
@@ -371,11 +493,74 @@ def _current_parcel_stats_hint(text: str) -> str:
         "fallback=최근 선택된 필지가 없으면 사용자에게 기준 필지를 물어볼 것",
         "radius_m=300",
         "visual_suppress=intermediate_parcel_candidates",
-        "answer_mode=use_counts 표 + matched_buildings 합계 + area_stats(평균·중앙값) + examples 3-5건 (후보 리스트로 답하지 말 것)",
+        "answer_mode=use_counts 표 + matched_buildings 합계 + coverage/probe_n + area_stats(평균·중앙값) + examples 3-5건 (후보 리스트로 답하지 말 것)",
         "answer_guard=후보 리스트가 아니라 통계가 본문. examples는 참고용 부록.",
     ]
     lines.extend(_area_lines(text))
     return "\n".join(lines)
+
+
+def _previous_existing_filter_hint(messages: list[dict[str, Any]], uses: list[str]) -> str:
+    context = _previous_existing_context(messages)
+    if context is None:
+        return ""
+    use_keywords = _format_use_keywords(uses)
+    if context["anchor_type"] == "address":
+        chain = (
+            f"직전 기준지/반경 유지 -> locate__search_address({context['anchor_text']}) -> "
+            f"locate__get_parcel -> analyze__find_existing_buildings(lng, lat, radius_m={context['radius']}, "
+            f"use_keywords={use_keywords}, probe_n=400, top_n=100)"
+        )
+    else:
+        chain = (
+            f"직전 기준지/반경 유지 -> locate__search_facility({context['anchor_text']}) -> "
+            f"analyze__find_existing_buildings(lng, lat, radius_m={context['radius']}, "
+            f"use_keywords={use_keywords}, probe_n=400, top_n=100)"
+        )
+    return "\n".join([
+        *_routing_header(),
+        "bucket=직전 기준 기존 건축물 필터",
+        "anchor_type=previous_context",
+        f"anchor_text={context['anchor_text']}",
+        f"radius_m={context['radius']}",
+        f"use_keywords={use_keywords}",
+        f"required_chain={chain}",
+        "visual_suppress=intermediate_parcel_candidates",
+        "answer_mode=직전 결과를 말로 재가공하지 말고 같은 기준지/반경에서 선택 용도만 재조회. total과 features를 함께 사용.",
+        "answer_guard=find_existing_buildings 결과 features의 state=confirmed_existing_building 항목만 답변/카드/지도에 사용.",
+    ])
+
+
+def _previous_existing_visualization_hint(messages: list[dict[str, Any]], uses: list[str]) -> str:
+    context = _previous_existing_context(messages)
+    if context is None:
+        return ""
+    use_keywords = _format_use_keywords(uses)
+    if context["anchor_type"] == "address":
+        chain = (
+            f"직전 기준지/반경/필터 유지 -> locate__search_address({context['anchor_text']}) -> "
+            f"locate__get_parcel -> analyze__find_existing_buildings(lng, lat, radius_m={context['radius']}, "
+            f"use_keywords={use_keywords}, probe_n=400, top_n=100)"
+        )
+    else:
+        chain = (
+            f"직전 기준지/반경/필터 유지 -> locate__search_facility({context['anchor_text']}) -> "
+            f"analyze__find_existing_buildings(lng, lat, radius_m={context['radius']}, "
+            f"use_keywords={use_keywords}, probe_n=400, top_n=100)"
+        )
+    return "\n".join([
+        *_routing_header(),
+        "bucket=직전 결과 시각화",
+        "anchor_type=previous_context",
+        f"anchor_text={context['anchor_text']}",
+        f"radius_m={context['radius']}",
+        f"use_keywords={use_keywords}",
+        f"required_chain={chain}",
+        "visual_required=true",
+        "visual_suppress=intermediate_parcel_candidates",
+        "answer_mode=짧게 표시 대상 수만 말하고, find_existing_buildings FeatureCollection이 지도에 렌더되게 할 것.",
+        "answer_guard='지도에 표시했다'고 말만 하지 말고 geometry가 있는 features를 반환하는 도구를 반드시 호출.",
+    ])
 
 
 def _current_parcel_hint() -> str:
