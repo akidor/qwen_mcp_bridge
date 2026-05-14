@@ -1,10 +1,31 @@
 export type NodeKind = "interface" | "bridge" | "model" | "policy" | "tooling" | "domain" | "data" | "render";
 
+export type ClusterId =
+  | "interface"
+  | "bridge"
+  | "routing"
+  | "model"
+  | "tool-loop"
+  | "mcp-pool"
+  | "domains"
+  | "data"
+  | "rendering";
+
+export interface ArchCluster {
+  id: ClusterId;
+  label: string;
+  caption: string;
+  color: string;
+  center: [number, number, number];
+  radius: number;
+}
+
 export interface ArchNode {
   id: string;
   label: string;
   caption: string;
   kind: NodeKind;
+  cluster: ClusterId;
   position: [number, number, number];
   details: string[];
 }
@@ -26,6 +47,93 @@ export const KIND_COLORS: Record<NodeKind, string> = {
   data: "#f97316",
   render: "#e5e7eb",
 };
+
+export const TOPOLOGY_CLUSTER_IDS: readonly ClusterId[] = [
+  "interface",
+  "bridge",
+  "routing",
+  "model",
+  "tool-loop",
+  "mcp-pool",
+  "domains",
+  "data",
+  "rendering",
+];
+
+export const ARCH_CLUSTERS: ArchCluster[] = [
+  {
+    id: "interface",
+    label: "Interface",
+    caption: "사용자 · React 화면",
+    color: "#38bdf8",
+    center: [-6.1, 0.45, 0.3],
+    radius: 1.75,
+  },
+  {
+    id: "bridge",
+    label: "Bridge",
+    caption: "OpenAI 호환 API",
+    color: "#f59e0b",
+    center: [-2.9, 0.2, 0],
+    radius: 0.9,
+  },
+  {
+    id: "routing",
+    label: "Query Routing",
+    caption: "anchor · intent · follow-up",
+    color: "#22c55e",
+    center: [-1.7, 2.55, 0],
+    radius: 2.05,
+  },
+  {
+    id: "model",
+    label: "Model",
+    caption: "Qwen / vLLM",
+    color: "#a78bfa",
+    center: [0.2, 0.05, 0.15],
+    radius: 0.95,
+  },
+  {
+    id: "tool-loop",
+    label: "Tool Loop",
+    caption: "streaming dispatch",
+    color: "#fb7185",
+    center: [0.8, -1.85, 0.35],
+    radius: 0.95,
+  },
+  {
+    id: "mcp-pool",
+    label: "MCP Pool",
+    caption: "catalog · spawn · dispatch",
+    color: "#f43f5e",
+    center: [3.1, 0.05, 0],
+    radius: 2.35,
+  },
+  {
+    id: "domains",
+    label: "MCP Domains",
+    caption: "locate · analyze · inspect",
+    color: "#2dd4bf",
+    center: [5.15, -0.35, 0],
+    radius: 2.45,
+  },
+  {
+    id: "data",
+    label: "Data Source",
+    caption: "Polygon API",
+    color: "#f97316",
+    center: [7.25, -0.3, 0.2],
+    radius: 0.95,
+  },
+  {
+    id: "rendering",
+    label: "Map Renderer",
+    caption: "parser · layer · popup",
+    color: "#e5e7eb",
+    center: [-3.75, -2.05, 0.25],
+    radius: 2.55,
+  },
+];
 
 export const MAP_RENDERER_NODE_IDS = [
   "toolResultParser",
@@ -83,6 +191,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "User",
     caption: "자연어 요청",
     kind: "interface",
+    cluster: "interface",
     position: [-7.1, 1.1, 0],
     details: ["주소/주변/통계/시각화 같은 말을 입력", "후속 발화는 직전 기준지와 반경을 이어받아야 함"],
   },
@@ -91,6 +200,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "React Web",
     caption: "지도 + 대화 UI",
     kind: "interface",
+    cluster: "interface",
     position: [-5.3, -0.2, 0.6],
     details: ["SSE 스트림을 받아 답변과 도구 상태를 표시", "도구 결과와 intent event를 Map Renderer 파이프라인으로 넘김"],
   },
@@ -99,6 +209,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "FastAPI Bridge",
     caption: "/v1/chat/completions",
     kind: "bridge",
+    cluster: "bridge",
     position: [-2.9, 0.2, 0],
     details: ["OpenAI 호환 요청을 받고 system prompt와 routing hint를 병합", "MCP pool과 vLLM 사이의 실행 루프를 관리"],
   },
@@ -107,6 +218,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Intent + Routing",
     caption: "query_policy / intent",
     kind: "policy",
+    cluster: "routing",
     position: [-1.2, 1.9, -0.35],
     details: [
       "주소 anchor, 통계 질의, 후속 필터/시각화 의도를 먼저 고정",
@@ -118,6 +230,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Anchor Extractor",
     caption: "_JIBUN_RE / _ROAD_RE",
     kind: "policy",
+    cluster: "routing",
     position: [-3.35, 1.45, 0.9],
     details: [
       "_JIBUN_RE, _ROAD_RE, _FACILITY_RE로 지번/도로명/시설명 anchor를 분리",
@@ -129,6 +242,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Intent Classifier",
     caption: "classify_intent",
     kind: "policy",
+    cluster: "routing",
     position: [-2.55, 2.5, -0.1],
     details: [
       "locate_show, existing_buildings, existing_building_stats, new_build_candidates 등으로 분기",
@@ -140,6 +254,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Stats Detector",
     caption: "_STATS_RE",
     kind: "policy",
+    cluster: "routing",
     position: [-2.0, 3.32, 0.78],
     details: [
       "통계치/몇 개/얼마나 있어/분포 같은 표현을 existing_building_statistics로 유도",
@@ -151,6 +266,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Follow-up Context",
     caption: "previous_context",
     kind: "policy",
+    cluster: "routing",
     position: [-0.92, 3.05, -0.82],
     details: [
       "다세대만 추려봐, 시각화만 해봐 같은 짧은 후속질의에 직전 기준지/반경/필터를 재사용",
@@ -162,6 +278,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Routing Hint Builder",
     caption: "build_routing_hint",
     kind: "policy",
+    cluster: "routing",
     position: [-0.08, 2.28, 0.4],
     details: [
       "build_routing_hint가 required_chain, radius_m, answer_guard, visual_required를 system prompt에 주입",
@@ -173,6 +290,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Scenario Tests",
     caption: "routing regressions",
     kind: "policy",
+    cluster: "routing",
     position: [-3.18, 3.08, -0.95],
     details: [
       "양재동/문정동/다세대만/시각화만 같은 실패 사례를 회귀 테스트로 고정",
@@ -184,6 +302,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Qwen / vLLM",
     caption: "tool-calling model",
     kind: "model",
+    cluster: "model",
     position: [0.2, 0.05, 0.15],
     details: ["사용자 의도와 tool schema를 보고 도구 호출을 생성", "최종 응답은 도구 결과를 한국어로 요약"],
   },
@@ -192,6 +311,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Tool Loop",
     caption: "streaming dispatch",
     kind: "tooling",
+    cluster: "tool-loop",
     position: [0.8, -1.85, 0.35],
     details: ["tool_calls를 누적하고 MCP dispatch 후 다음 iteration으로 연결", "intent event와 tool_call event를 UI에 스트리밍"],
   },
@@ -200,6 +320,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "MCP Pool",
     caption: "8 stdio domains",
     kind: "tooling",
+    cluster: "mcp-pool",
     position: [3.1, 0.1, 0],
     details: [
       "locate/inspect/reach/simulate/estimate/design/export/analyze 서버를 spawn",
@@ -211,6 +332,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Tool Catalog",
     caption: "MCP → OpenAI schema",
     kind: "tooling",
+    cluster: "mcp-pool",
     position: [1.85, 1.25, -0.85],
     details: [
       "각 domain의 list_tools 결과를 mcp_tool_to_openai로 변환",
@@ -222,6 +344,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Domain Spawner",
     caption: "uv stdio servers",
     kind: "tooling",
+    cluster: "mcp-pool",
     position: [3.55, 1.55, 0.85],
     details: [
       "StdioServerParameters로 uv --directory urban_mcp run python -m urban_mcp_<domain> 실행",
@@ -233,6 +356,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Dispatch Router",
     caption: "prefix → session",
     kind: "tooling",
+    cluster: "mcp-pool",
     position: [1.85, -0.85, 0.85],
     details: [
       "parse_prefixed_name으로 analyze__find_existing_buildings 같은 이름을 domain/tool로 분해",
@@ -244,6 +368,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Arg Coercer",
     caption: "_coerce_args",
     kind: "tooling",
+    cluster: "mcp-pool",
     position: [2.75, -1.45, -0.75],
     details: [
       "_coerce_args가 inputSchema를 보고 문자열 숫자/불리언을 안전하게 캐스팅",
@@ -255,6 +380,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Pool Health",
     caption: "ready / failed domains",
     kind: "tooling",
+    cluster: "mcp-pool",
     position: [4.35, 0.95, -0.35],
     details: [
       "healthz에 ready_domains, failed_domains, stdio_tool_count, ui_tool_count를 노출",
@@ -266,6 +392,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "UI Tools Adapter",
     caption: "in-process ui actions",
     kind: "tooling",
+    cluster: "mcp-pool",
     position: [1.55, -1.95, -0.1],
     details: [
       "stdio MCP가 아닌 ui__set_basemap, ui__clear_layers 같은 화면 제어 도구를 함께 노출",
@@ -277,6 +404,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "locate",
     caption: "주소/필지",
     kind: "domain",
+    cluster: "domains",
     position: [5.0, 1.95, -0.9],
     details: ["search_address, get_parcel 등 기준지 확정", "지번이 있으면 시설명 검색으로 drift하지 않게 해야 함"],
   },
@@ -285,6 +413,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "analyze",
     caption: "통계/후보",
     kind: "domain",
+    cluster: "domains",
     position: [5.6, 0.8, 0.85],
     details: ["find_existing_buildings, existing_building_statistics", "probe_n/top_n/coverage가 정확도에 직접 영향"],
   },
@@ -293,6 +422,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "inspect",
     caption: "규제/현황",
     kind: "domain",
+    cluster: "domains",
     position: [5.8, -0.4, -0.95],
     details: ["토지이용, 규제, 주변 맥락 확인", "단일 필지 판단의 보조 정보"],
   },
@@ -301,6 +431,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "design",
     caption: "매스/설계",
     kind: "domain",
+    cluster: "domains",
     position: [5.2, -1.65, 0.7],
     details: ["mass 후보, 설계 시뮬레이션과 연결", "신축 가능성 검토 이후 단계에서 사용"],
   },
@@ -309,6 +440,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "reach / simulate / estimate / export",
     caption: "접근성/시뮬/비용/출력",
     kind: "domain",
+    cluster: "domains",
     position: [4.2, -2.55, -0.45],
     details: ["도보권, 대중교통, 비용, 내보내기 도구 묶음", "분석 결과를 후속 워크플로우로 확장"],
   },
@@ -317,6 +449,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Polygon API",
     caption: "공공/공간 데이터",
     kind: "data",
+    cluster: "data",
     position: [7.25, -0.3, 0.2],
     details: ["필지 geometry, 건축물대장, WMS/공간 데이터를 제공", "누락/샘플링 여부를 validator가 확인해야 함"],
   },
@@ -325,6 +458,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Tool Result Parser",
     caption: "text/json → features",
     kind: "render",
+    cluster: "rendering",
     position: [-6.15, -1.35, 1.15],
     details: ["MCP 결과 텍스트에서 JSON/FeatureCollection/bbox/properties를 추출", "geometry가 없으면 지도 레이어가 아니라 히스토리 메시지로만 남김"],
   },
@@ -333,6 +467,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Intent Visual Filter",
     caption: "shouldRenderToolResult",
     kind: "render",
+    cluster: "rendering",
     position: [-5.15, -2.15, 0.35],
     details: ["현재 intent 기준으로 중간 도구 결과 시각화를 억제", "예: 기존 건축물 조회 중 find_parcels 후보 레이어는 깔지 않음"],
   },
@@ -341,6 +476,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Failure Guards",
     caption: "표시 전 검증",
     kind: "render",
+    cluster: "rendering",
     position: [-4.35, -1.25, -0.75],
     details: ["지도 요청인데 geometry features가 없으면 말로 표시했다고 끝내면 안 됨", "bbox 없음, layer 생성 실패, parser 실패 같은 상태를 드러내야 함"],
   },
@@ -349,6 +485,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Auto Layer Manager",
     caption: "applyToolResult",
     kind: "render",
+    cluster: "rendering",
     position: [-3.25, -2.05, 0.25],
     details: ["FeatureCollection을 MapLibre source/layer로 추가하고 toolHistory에 기록", "레이어 visibility, opacity, clearAllToolLayers와 연결"],
   },
@@ -357,6 +494,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Popup + Cards",
     caption: "properties → UI",
     kind: "render",
+    cluster: "rendering",
     position: [-2.05, -1.2, 1.05],
     details: ["주소, 면적, 지목, matched_use, building, building_floors를 팝업/카드로 표시", "긴 주소와 규제 정보가 넘치지 않도록 레이아웃 제약 필요"],
   },
@@ -365,6 +503,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Viewport Controller",
     caption: "fitToBbox / focusParcel",
     kind: "render",
+    cluster: "rendering",
     position: [-2.15, -2.75, -0.55],
     details: ["bbox가 있으면 결과 범위로 지도 이동", "카드 클릭 시 선택 필지 geometry와 popup에 초점 이동"],
   },
@@ -373,6 +512,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Map State",
     caption: "layers / WMS / draw",
     kind: "render",
+    cluster: "rendering",
     position: [-4.6, -2.85, 1.15],
     details: ["WMS 선택, 도구 레이어 히스토리, 그리기 객체, 투명도 상태를 App 레벨에서 관리", "모바일/데스크톱 패널이 같은 상태를 공유"],
   },
@@ -381,6 +521,7 @@ export const ARCH_NODES: ArchNode[] = [
     label: "Map Renderer",
     caption: "MapLibre 화면",
     kind: "render",
+    cluster: "rendering",
     position: [-0.95, -1.85, 0.25],
     details: ["applyToolResult 결과를 최종 MapLibre source/layer/popup/focus로 렌더링", "시각화 실패는 LLM 답변이 아니라 Parser → Filter → Layer → Viewport 체인에서 추적"],
   },

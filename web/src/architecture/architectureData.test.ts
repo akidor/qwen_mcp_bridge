@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ARCH_CLUSTERS,
   ARCH_LINKS,
   ARCH_NODES,
   MAP_RENDERER_NODE_IDS,
   MCP_POOL_NODE_IDS,
   QUERY_ROUTING_NODE_IDS,
+  TOPOLOGY_CLUSTER_IDS,
   nodeById,
 } from "./architectureData";
 
@@ -116,5 +118,32 @@ describe("architecture data", () => {
     expect(nodeById("anchorExtractor").details.join(" ")).toContain("_JIBUN_RE");
     expect(nodeById("followupContext").details.join(" ")).toContain("시각화만");
     expect(nodeById("routingHintBuilder").details.join(" ")).toContain("build_routing_hint");
+  });
+
+  it("groups every node into a togglable architecture layer", () => {
+    expect(TOPOLOGY_CLUSTER_IDS).toEqual([
+      "interface",
+      "bridge",
+      "routing",
+      "model",
+      "tool-loop",
+      "mcp-pool",
+      "domains",
+      "data",
+      "rendering",
+    ]);
+
+    const clusterIds = new Set(ARCH_CLUSTERS.map((cluster) => cluster.id));
+    for (const id of TOPOLOGY_CLUSTER_IDS) {
+      expect(clusterIds.has(id)).toBe(true);
+    }
+
+    for (const node of ARCH_NODES) {
+      expect(clusterIds.has(node.cluster)).toBe(true);
+    }
+
+    expect(nodeById("routingHintBuilder").cluster).toBe("routing");
+    expect(nodeById("poolArgCoercer").cluster).toBe("mcp-pool");
+    expect(nodeById("autoLayerManager").cluster).toBe("rendering");
   });
 });
