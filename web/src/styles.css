@@ -2051,8 +2051,9 @@ input, textarea, button, select {
 }
 .arch-legend-panel {
   left: 18px;
-  bottom: 76px;
-  width: min(340px, calc(100vw - 36px));
+  top: 96px;
+  bottom: auto;
+  width: min(300px, calc(100vw - 36px));
   padding: 14px;
 }
 .arch-legend-grid {
