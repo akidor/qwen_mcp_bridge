@@ -13,6 +13,7 @@ import MobileLayout from "./mobile/MobileLayout";
 import MobileMapBar from "./mobile/MobileMapBar";
 import BottomSheet from "./mobile/BottomSheet";
 import BottomSheetContent from "./mobile/BottomSheetContent";
+import ArchitectureView from "./architecture/ArchitectureView";
 import LayerPanelBody from "./panel/LayerPanelBody";
 import SettingsTab from "./panel/SettingsTab";
 import DebugTab from "./panel/DebugTab";
@@ -41,6 +42,7 @@ interface ToolHistoryEntry {
 }
 
 export default function App() {
+  const [viewMode, setViewMode] = useState<"map" | "architecture">("map");
   const [basemap, setBasemap] = useState<BasemapKind>("base");
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [terrainEnabled, setTerrainEnabled] = useState(false);
@@ -325,6 +327,20 @@ export default function App() {
     }
   }
 
+  if (viewMode === "architecture") {
+    return <ArchitectureView onClose={() => setViewMode("map")} />;
+  }
+
+  const architectureButton = (
+    <button
+      className="architecture-open-button"
+      onClick={() => setViewMode("architecture")}
+      aria-label="현재 시스템 구조 3D 보기"
+    >
+      3D 구조
+    </button>
+  );
+
   if (isMobile) {
     const layerSlot = (
       <LayerPanelBody
@@ -370,6 +386,7 @@ export default function App() {
 
     return (
       <>
+        {architectureButton}
         <MobileLayout
           isKeyboardOpen={vv.isKeyboardOpen}
           visualViewportHeightPx={vv.height}
@@ -434,6 +451,7 @@ export default function App() {
   // 데스크톱 (기존)
   return (
     <>
+      {architectureButton}
       <MapView
         basemap={basemap}
         onReady={(map) => setMapInstance(map)}

@@ -1877,3 +1877,306 @@ input, textarea, button, select {
   background: var(--accent-soft, #eef);
   color: var(--accent, #3b82f6);
 }
+
+/* === Architecture 3D view === */
+.architecture-open-button {
+  position: absolute;
+  left: 12px;
+  top: 82px;
+  z-index: 24;
+  height: 34px;
+  min-width: 76px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  background: rgba(255, 255, 255, 0.92);
+  color: #111827;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+.architecture-open-button:hover {
+  border-color: rgba(14, 165, 233, 0.55);
+  background: #f8fafc;
+}
+.architecture-page {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #081018;
+  color: #f8fafc;
+  isolation: isolate;
+}
+.architecture-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.25));
+  z-index: 1;
+}
+.architecture-canvas {
+  position: absolute !important;
+  inset: 0;
+  z-index: 0;
+}
+.arch-topbar {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 16px;
+  z-index: 3;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  pointer-events: none;
+}
+.arch-topbar h1 {
+  margin: 0;
+  font-size: clamp(22px, 3vw, 38px);
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.arch-eyebrow {
+  margin: 0 0 6px;
+  color: #93c5fd;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+.arch-close-button {
+  pointer-events: auto;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(226, 232, 240, 0.22);
+  background: rgba(15, 23, 42, 0.72);
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.arch-close-button:hover {
+  border-color: rgba(56, 189, 248, 0.65);
+  background: rgba(15, 23, 42, 0.88);
+}
+.arch-info-panel,
+.arch-legend-panel {
+  position: absolute;
+  z-index: 3;
+  border: 1px solid rgba(226, 232, 240, 0.16);
+  background: rgba(8, 16, 24, 0.74);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-radius: 8px;
+}
+.arch-info-panel {
+  right: 18px;
+  top: 86px;
+  width: min(360px, calc(100vw - 36px));
+  padding: 18px;
+}
+.arch-info-panel h2,
+.arch-legend-panel h2 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 18px;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+.arch-panel-kicker {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+.arch-caption {
+  margin: 8px 0 0;
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.arch-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 14px 0;
+}
+.arch-metrics span {
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  color: #e2e8f0;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.arch-info-panel ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 9px;
+}
+.arch-info-panel li {
+  position: relative;
+  padding-left: 13px;
+  color: #e5e7eb;
+  font-size: 12px;
+  line-height: 1.52;
+}
+.arch-info-panel li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #38bdf8;
+}
+.arch-legend-panel {
+  left: 18px;
+  bottom: 76px;
+  width: min(340px, calc(100vw - 36px));
+  padding: 14px;
+}
+.arch-legend-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.arch-legend-grid span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #cbd5e1;
+  font-size: 11px;
+  min-width: 0;
+}
+.arch-legend-grid i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  box-shadow: 0 0 14px currentColor;
+  flex: 0 0 auto;
+}
+.arch-flow-strip {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 16px;
+  z-index: 4;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.arch-flow-step {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(15, 23, 42, 0.72);
+  color: #e5e7eb;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.arch-flow-step span {
+  color: #94a3b8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+}
+.arch-flow-step.active {
+  background: rgba(248, 250, 252, 0.12);
+  color: #ffffff;
+}
+.arch-node-label {
+  min-width: 96px;
+  max-width: 150px;
+  padding: 5px 7px;
+  border-radius: 6px;
+  border: 1px solid rgba(226, 232, 240, 0.16);
+  background: rgba(8, 16, 24, 0.68);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+  color: #f8fafc;
+  text-align: center;
+  line-height: 1.25;
+}
+.arch-node-label strong {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+.arch-node-label span {
+  display: block;
+  margin-top: 2px;
+  color: #cbd5e1;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+.arch-node-label.selected {
+  border-color: rgba(56, 189, 248, 0.78);
+  background: rgba(15, 23, 42, 0.88);
+}
+
+@media (max-width: 760px) {
+  .architecture-open-button {
+    top: 10px;
+    left: 10px;
+    height: 32px;
+    min-width: 70px;
+  }
+  .arch-topbar {
+    left: 12px;
+    right: 12px;
+    top: 12px;
+  }
+  .arch-topbar h1 {
+    font-size: 21px;
+  }
+  .arch-eyebrow {
+    max-width: 210px;
+    font-size: 10px;
+  }
+  .arch-info-panel {
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: 116px;
+    width: auto;
+    max-height: 34vh;
+    overflow-y: auto;
+    padding: 14px;
+  }
+  .arch-legend-panel {
+    display: none;
+  }
+  .arch-flow-strip {
+    left: 12px;
+    right: 12px;
+    bottom: 10px;
+  }
+}
