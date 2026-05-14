@@ -46,10 +46,24 @@ export const MCP_POOL_NODE_IDS = [
   "poolUiTools",
 ] as const;
 
+export const QUERY_ROUTING_NODE_IDS = [
+  "anchorExtractor",
+  "intentClassifier",
+  "statsDetector",
+  "followupContext",
+  "routingHintBuilder",
+  "routingScenarioTests",
+] as const;
+
 export const FLOW_NODE_IDS = [
   "user",
   "web",
   "bridge",
+  "anchorExtractor",
+  "intentClassifier",
+  "statsDetector",
+  "followupContext",
+  "routingHintBuilder",
   "policy",
   "qwen",
   "loop",
@@ -94,7 +108,76 @@ export const ARCH_NODES: ArchNode[] = [
     caption: "query_policy / intent",
     kind: "policy",
     position: [-1.2, 1.9, -0.35],
-    details: ["주소 anchor, 통계 질의, 후속 필터/시각화 의도를 먼저 고정", "프롬프트가 아니라 deterministic hint로 도구 체인을 좁힘"],
+    details: [
+      "주소 anchor, 통계 질의, 후속 필터/시각화 의도를 먼저 고정",
+      "Anchor → Intent → Follow-up → Routing Hint 하위 체인이 Qwen 도구 선택을 좁힘",
+    ],
+  },
+  {
+    id: "anchorExtractor",
+    label: "Anchor Extractor",
+    caption: "_JIBUN_RE / _ROAD_RE",
+    kind: "policy",
+    position: [-3.35, 1.45, 0.9],
+    details: [
+      "_JIBUN_RE, _ROAD_RE, _FACILITY_RE로 지번/도로명/시설명 anchor를 분리",
+      "양재동 344-7 같은 지번은 locate__search_facility로 drift하지 않게 가드",
+    ],
+  },
+  {
+    id: "intentClassifier",
+    label: "Intent Classifier",
+    caption: "classify_intent",
+    kind: "policy",
+    position: [-2.55, 2.5, -0.1],
+    details: [
+      "locate_show, existing_buildings, existing_building_stats, new_build_candidates 등으로 분기",
+      "streaming 시작 시 intent SSE event를 보내 frontend 시각화 필터가 참고",
+    ],
+  },
+  {
+    id: "statsDetector",
+    label: "Stats Detector",
+    caption: "_STATS_RE",
+    kind: "policy",
+    position: [-2.0, 3.32, 0.78],
+    details: [
+      "통계치/몇 개/얼마나 있어/분포 같은 표현을 existing_building_statistics로 유도",
+      "후보 6개 리스트로 답하지 않도록 answer_mode와 tool chain을 고정",
+    ],
+  },
+  {
+    id: "followupContext",
+    label: "Follow-up Context",
+    caption: "previous_context",
+    kind: "policy",
+    position: [-0.92, 3.05, -0.82],
+    details: [
+      "다세대만 추려봐, 시각화만 해봐 같은 짧은 후속질의에 직전 기준지/반경/필터를 재사용",
+      "주소가 없는 발화도 이전 user/assistant 문맥에서 anchor와 radius를 복원",
+    ],
+  },
+  {
+    id: "routingHintBuilder",
+    label: "Routing Hint Builder",
+    caption: "build_routing_hint",
+    kind: "policy",
+    position: [-0.08, 2.28, 0.4],
+    details: [
+      "build_routing_hint가 required_chain, radius_m, answer_guard, visual_required를 system prompt에 주입",
+      "LLM이 감으로 도구를 고르는 폭을 줄이고 특정 tool call 체인을 강제",
+    ],
+  },
+  {
+    id: "routingScenarioTests",
+    label: "Scenario Tests",
+    caption: "routing regressions",
+    kind: "policy",
+    position: [-3.18, 3.08, -0.95],
+    details: [
+      "양재동/문정동/다세대만/시각화만 같은 실패 사례를 회귀 테스트로 고정",
+      "새 표현이 생기면 프롬프트보다 intent/query_policy 테스트로 먼저 흡수",
+    ],
   },
   {
     id: "qwen",
@@ -307,6 +390,14 @@ export const ARCH_LINKS: ArchLink[] = [
   { from: "user", to: "web", label: "질의 입력", curve: 0.45 },
   { from: "web", to: "bridge", label: "SSE 요청", curve: -0.2 },
   { from: "bridge", to: "policy", label: "routing hint", curve: 0.35 },
+  { from: "bridge", to: "anchorExtractor", label: "latest messages", curve: 0.28 },
+  { from: "anchorExtractor", to: "intentClassifier", label: "anchor type", curve: 0.16 },
+  { from: "statsDetector", to: "intentClassifier", label: "stats signal", curve: 0.16 },
+  { from: "intentClassifier", to: "routingHintBuilder", label: "intent label", curve: -0.12 },
+  { from: "followupContext", to: "routingHintBuilder", label: "previous anchor", curve: 0.2 },
+  { from: "routingScenarioTests", to: "routingHintBuilder", label: "regression guard", curve: -0.18 },
+  { from: "routingHintBuilder", to: "policy", label: "system hint", curve: 0.12 },
+  { from: "intentClassifier", to: "web", label: "intent event", curve: -0.7 },
   { from: "policy", to: "qwen", label: "tool chain guard", curve: -0.25 },
   { from: "bridge", to: "qwen", label: "messages + tools", curve: 0.15 },
   { from: "qwen", to: "loop", label: "tool_calls", curve: -0.25 },

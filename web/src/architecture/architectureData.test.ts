@@ -5,6 +5,7 @@ import {
   ARCH_NODES,
   MAP_RENDERER_NODE_IDS,
   MCP_POOL_NODE_IDS,
+  QUERY_ROUTING_NODE_IDS,
   nodeById,
 } from "./architectureData";
 
@@ -80,5 +81,40 @@ describe("architecture data", () => {
 
     expect(nodeById("pool").details.join(" ")).toContain("dispatch");
     expect(nodeById("poolArgCoercer").details.join(" ")).toContain("_coerce_args");
+  });
+
+  it("models query understanding as anchor, intent, follow-up, hint, and eval layers", () => {
+    expect(QUERY_ROUTING_NODE_IDS).toEqual([
+      "anchorExtractor",
+      "intentClassifier",
+      "statsDetector",
+      "followupContext",
+      "routingHintBuilder",
+      "routingScenarioTests",
+    ]);
+
+    for (const id of QUERY_ROUTING_NODE_IDS) {
+      const node = nodeById(id);
+      expect(node.kind).toBe("policy");
+      expect(node.details.length).toBeGreaterThanOrEqual(2);
+    }
+
+    const linkSet = new Set(ARCH_LINKS.map((link) => `${link.from}->${link.to}`));
+    for (const requiredLink of [
+      "bridge->anchorExtractor",
+      "anchorExtractor->intentClassifier",
+      "statsDetector->intentClassifier",
+      "followupContext->routingHintBuilder",
+      "intentClassifier->routingHintBuilder",
+      "routingHintBuilder->policy",
+      "routingScenarioTests->routingHintBuilder",
+      "intentClassifier->web",
+    ]) {
+      expect(linkSet.has(requiredLink)).toBe(true);
+    }
+
+    expect(nodeById("anchorExtractor").details.join(" ")).toContain("_JIBUN_RE");
+    expect(nodeById("followupContext").details.join(" ")).toContain("시각화만");
+    expect(nodeById("routingHintBuilder").details.join(" ")).toContain("build_routing_hint");
   });
 });
