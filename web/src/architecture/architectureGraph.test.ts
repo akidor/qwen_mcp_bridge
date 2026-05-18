@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ARCH_CLUSTERS, ARCH_LINKS, ARCH_NODES } from "./architectureData";
-import { analyzeArchitectureGraph } from "./architectureGraph";
+import { analyzeArchitectureGraph, summarizeSuggestedLinkReviews } from "./architectureGraph";
 
 describe("architecture graph connectivity analysis", () => {
   it("separates intentional source/sink/guard nodes from weakly connected processors", () => {
@@ -64,5 +64,27 @@ describe("architecture graph connectivity analysis", () => {
     expect(report.suggestedLinks.map((link) => link.id)).toEqual(["design->polygon", "otherDomains->polygon", "map->web"]);
     expect(report.summary.suggestedLinkCount).toBe(report.suggestedLinks.length);
     expect(report.suggestedLinks.some((link) => link.from === "analyze" && link.to === "polygon")).toBe(false);
+  });
+
+  it("summarizes suggested link review states and keeps ignored links out of preview", () => {
+    const report = analyzeArchitectureGraph(ARCH_NODES, ARCH_LINKS, ARCH_CLUSTERS);
+
+    const emptyReview = summarizeSuggestedLinkReviews(report.suggestedLinks, {});
+    expect(emptyReview).toEqual({
+      pending: report.suggestedLinks.length,
+      planned: 0,
+      ignored: 0,
+      visibleSuggestionIds: report.suggestedLinks.map((suggestion) => suggestion.id),
+    });
+
+    const reviewed = summarizeSuggestedLinkReviews(report.suggestedLinks, {
+      "design->polygon": "planned",
+      "map->web": "ignored",
+    });
+
+    expect(reviewed.pending).toBe(1);
+    expect(reviewed.planned).toBe(1);
+    expect(reviewed.ignored).toBe(1);
+    expect(reviewed.visibleSuggestionIds).toEqual(["design->polygon", "otherDomains->polygon"]);
   });
 });

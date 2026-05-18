@@ -20,10 +20,12 @@ import {
 } from "./architectureData";
 import {
   analyzeArchitectureGraph,
+  summarizeSuggestedLinkReviews,
   type ArchitectureConnectivityReport,
   type ConnectivitySeverity,
   type NodeConnectivityStatus,
   type SuggestedLinkRecommendation,
+  type SuggestedLinkReviewState,
 } from "./architectureGraph";
 
 const CONNECTIVITY_COLORS: Record<ConnectivitySeverity, string> = {
@@ -37,6 +39,14 @@ const CONNECTIVITY_LABELS: Record<ConnectivitySeverity, string> = {
   weak: "취약",
   broken: "단절",
 };
+
+const SUGGESTION_REVIEW_LABELS: Record<SuggestedLinkReviewState, string> = {
+  pending: "보류",
+  planned: "적용 예정",
+  ignored: "무시",
+};
+
+const SUGGESTION_REVIEW_OPTIONS: SuggestedLinkReviewState[] = ["planned", "pending", "ignored"];
 
 function arcPoints(from: ArchNode, to: ArchNode, curve = 0) {
   const start = new THREE.Vector3(...from.position);
@@ -84,10 +94,20 @@ function LinkMesh({ link, index, dim }: { link: ArchLink; index: number; dim: bo
   );
 }
 
-function SuggestedLinkMesh({ suggestion, index, dim }: { suggestion: SuggestedLinkRecommendation; index: number; dim: boolean }) {
+function SuggestedLinkMesh({
+  suggestion,
+  index,
+  dim,
+  reviewState,
+}: {
+  suggestion: SuggestedLinkRecommendation;
+  index: number;
+  dim: boolean;
+  reviewState: SuggestedLinkReviewState;
+}) {
   const from = nodeById(suggestion.from);
   const to = nodeById(suggestion.to);
-  const color = suggestion.confidence === "high" ? "#fbbf24" : "#f59e0b";
+  const color = reviewState === "planned" ? "#22c55e" : suggestion.confidence === "high" ? "#fbbf24" : "#f59e0b";
   const points = useMemo(() => arcPoints(from, to, suggestion.curve), [from, to, suggestion.curve]);
   const segments = useMemo(() => {
     const result: THREE.Vector3[][] = [];
@@ -104,9 +124,9 @@ function SuggestedLinkMesh({ suggestion, index, dim }: { suggestion: SuggestedLi
           key={`${suggestion.id}-${segmentIndex}`}
           points={segment}
           color={hexNumber(color)}
-          lineWidth={suggestion.confidence === "high" ? 2.1 : 1.6}
+          lineWidth={reviewState === "planned" ? 2.5 : suggestion.confidence === "high" ? 2.1 : 1.6}
           transparent
-          opacity={dim ? 0.1 : 0.72}
+          opacity={dim ? 0.1 : reviewState === "planned" ? 0.86 : 0.72}
         />
       ))}
       {!dim && <Signal points={points} color={color} phase={(index * 0.29) % 1} />}
@@ -242,12 +262,16 @@ function ArchitectureScene({
   selectedId,
   activeClusters,
   connectivityReport,
+  suggestedLinks,
+  suggestionReviewById,
   previewLinksVisible,
   onSelect,
 }: {
   selectedId: string;
   activeClusters: Set<ClusterId>;
   connectivityReport: ArchitectureConnectivityReport;
+  suggestedLinks: SuggestedLinkRecommendation[];
+  suggestionReviewById: Record<string, SuggestedLinkReviewState>;
   previewLinksVisible: boolean;
   onSelect: (id: string) => void;
 }) {
@@ -283,12 +307,18 @@ function ArchitectureScene({
             <LinkMesh key={`${link.from}-${link.to}`} link={link} index={index} dim={!visible} />
           );
         })}
-        {previewLinksVisible && connectivityReport.suggestedLinks.map((suggestion, index) => {
+        {previewLinksVisible && suggestedLinks.map((suggestion, index) => {
           const from = nodeById(suggestion.from);
           const to = nodeById(suggestion.to);
           const visible = activeClusters.has(from.cluster) && activeClusters.has(to.cluster);
           return (
-            <SuggestedLinkMesh key={suggestion.id} suggestion={suggestion} index={index} dim={!visible} />
+            <SuggestedLinkMesh
+              key={suggestion.id}
+              suggestion={suggestion}
+              index={index}
+              dim={!visible}
+              reviewState={suggestionReviewById[suggestion.id] ?? "pending"}
+            />
           );
         })}
         {ARCH_NODES.map((node) => (
@@ -345,7 +375,16 @@ export default function ArchitectureView({ onClose }: { onClose: () => void }) {
   const [selectedId, setSelectedId] = useState("bridge");
   const [activeClusters, setActiveClusters] = useState<Set<ClusterId>>(() => new Set(TOPOLOGY_CLUSTER_IDS));
   const [previewLinksVisible, setPreviewLinksVisible] = useState(true);
+  const [suggestionReviewById, setSuggestionReviewById] = useState<Record<string, SuggestedLinkReviewState>>({});
   const connectivityReport = useMemo(() => analyzeArchitectureGraph(ARCH_NODES, ARCH_LINKS, ARCH_CLUSTERS), []);
+  const suggestionReviewSummary = useMemo(
+    () => summarizeSuggestedLinkReviews(connectivityReport.suggestedLinks, suggestionReviewById),
+    [connectivityReport.suggestedLinks, suggestionReviewById],
+  );
+  const visibleSuggestedLinks = useMemo(() => {
+    const visibleIds = new Set(suggestionReviewSummary.visibleSuggestionIds);
+    return connectivityReport.suggestedLinks.filter((suggestion) => visibleIds.has(suggestion.id));
+  }, [connectivityReport.suggestedLinks, suggestionReviewSummary.visibleSuggestionIds]);
   const selected = nodeById(selectedId);
   const selectedConnectivity = connectivityReport.nodeStatusById[selectedId];
   const selectedSuggestions = connectivityReport.suggestedLinks.filter(
@@ -379,6 +418,15 @@ export default function ArchitectureView({ onClose }: { onClose: () => void }) {
 
   const showAllClusters = () => setActiveClusters(new Set(TOPOLOGY_CLUSTER_IDS));
 
+  const setSuggestionReview = (id: string, state: SuggestedLinkReviewState) => {
+    setSuggestionReviewById((previous) => {
+      const next = { ...previous };
+      if (state === "pending") delete next[id];
+      else next[id] = state;
+      return next;
+    });
+  };
+
   return (
     <main className="architecture-page">
       <Canvas className="architecture-canvas" dpr={[1, 2]} gl={{ antialias: true, alpha: true }}>
@@ -387,6 +435,8 @@ export default function ArchitectureView({ onClose }: { onClose: () => void }) {
           selectedId={selectedId}
           activeClusters={activeClusters}
           connectivityReport={connectivityReport}
+          suggestedLinks={visibleSuggestedLinks}
+          suggestionReviewById={suggestionReviewById}
           previewLinksVisible={previewLinksVisible}
           onSelect={setSelectedId}
         />
@@ -434,10 +484,29 @@ export default function ArchitectureView({ onClose }: { onClose: () => void }) {
             <div className="arch-suggestion-panel">
               <h3>권장 보강</h3>
               {selectedSuggestions.map((suggestion) => (
-                <button key={suggestion.id} type="button" onClick={() => setSelectedId(suggestion.from)}>
-                  <strong>{suggestion.from} → {suggestion.to}</strong>
-                  <span>{suggestion.reason}</span>
-                </button>
+                <article key={suggestion.id} className="arch-suggestion-card">
+                  <button type="button" onClick={() => setSelectedId(suggestion.from)}>
+                    <strong>{suggestion.from} → {suggestion.to}</strong>
+                    <span>{suggestion.reason}</span>
+                  </button>
+                  <div className="arch-suggestion-review-row">
+                    <span className={`arch-suggestion-status ${suggestionReviewById[suggestion.id] ?? "pending"}`}>
+                      {SUGGESTION_REVIEW_LABELS[suggestionReviewById[suggestion.id] ?? "pending"]}
+                    </span>
+                    <div className="arch-suggestion-actions" aria-label={`${suggestion.id} 검토 상태`}>
+                      {SUGGESTION_REVIEW_OPTIONS.map((state) => (
+                        <button
+                          key={state}
+                          type="button"
+                          className={(suggestionReviewById[suggestion.id] ?? "pending") === state ? "active" : ""}
+                          onClick={() => setSuggestionReview(suggestion.id, state)}
+                        >
+                          {SUGGESTION_REVIEW_LABELS[state]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </article>
               ))}
             </div>
           )}
@@ -516,7 +585,9 @@ export default function ArchitectureView({ onClose }: { onClose: () => void }) {
           <span>weak clusters {connectivityReport.summary.weakClusterIds.length}</span>
         </div>
         <div className="arch-connectivity-summary arch-connectivity-summary-single">
-          <span>suggested links {connectivityReport.summary.suggestedLinkCount}</span>
+          <span>보류 {suggestionReviewSummary.pending}</span>
+          <span>적용 예정 {suggestionReviewSummary.planned}</span>
+          <span>무시 {suggestionReviewSummary.ignored}</span>
         </div>
         <div className="arch-weak-node-list">
           {connectivityReport.summary.weakNodeIds.slice(0, 5).map((id) => {
@@ -542,12 +613,31 @@ export default function ArchitectureView({ onClose }: { onClose: () => void }) {
         <h3>권장 보강</h3>
         <div className="arch-suggestion-list">
           {connectivityReport.suggestedLinks.map((suggestion) => (
-            <button key={suggestion.id} type="button" onClick={() => setSelectedId(suggestion.from)}>
-              <span>
-                <strong>{suggestion.from} → {suggestion.to}</strong>
-                <em>{suggestion.source} · {suggestion.confidence}</em>
-              </span>
-            </button>
+            <article key={suggestion.id} className="arch-suggestion-card">
+              <button type="button" onClick={() => setSelectedId(suggestion.from)}>
+                <span>
+                  <strong>{suggestion.from} → {suggestion.to}</strong>
+                  <em>{suggestion.source} · {suggestion.confidence}</em>
+                </span>
+              </button>
+              <div className="arch-suggestion-review-row">
+                <span className={`arch-suggestion-status ${suggestionReviewById[suggestion.id] ?? "pending"}`}>
+                  {SUGGESTION_REVIEW_LABELS[suggestionReviewById[suggestion.id] ?? "pending"]}
+                </span>
+                <div className="arch-suggestion-actions" aria-label={`${suggestion.id} 검토 상태`}>
+                  {SUGGESTION_REVIEW_OPTIONS.map((state) => (
+                    <button
+                      key={state}
+                      type="button"
+                      className={(suggestionReviewById[suggestion.id] ?? "pending") === state ? "active" : ""}
+                      onClick={() => setSuggestionReview(suggestion.id, state)}
+                    >
+                      {SUGGESTION_REVIEW_LABELS[state]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </article>
           ))}
         </div>
       </section>

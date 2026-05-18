@@ -46,6 +46,15 @@ export interface SuggestedLinkRecommendation {
   source: "weak-node" | "weak-cluster";
 }
 
+export type SuggestedLinkReviewState = "pending" | "planned" | "ignored";
+
+export interface SuggestedLinkReviewSummary {
+  pending: number;
+  planned: number;
+  ignored: number;
+  visibleSuggestionIds: string[];
+}
+
 export interface ArchitectureConnectivityReport {
   nodeStatusById: Record<string, NodeConnectivityStatus>;
   clusterStatusById: Partial<Record<ClusterId, ClusterConnectivityStatus>>;
@@ -60,6 +69,26 @@ export interface ArchitectureConnectivityReport {
     suggestedLinkCount: number;
     issueCount: number;
   };
+}
+
+export function summarizeSuggestedLinkReviews(
+  suggestions: readonly SuggestedLinkRecommendation[],
+  reviewById: Readonly<Record<string, SuggestedLinkReviewState>>,
+): SuggestedLinkReviewSummary {
+  const summary: SuggestedLinkReviewSummary = {
+    pending: 0,
+    planned: 0,
+    ignored: 0,
+    visibleSuggestionIds: [],
+  };
+
+  for (const suggestion of suggestions) {
+    const state = reviewById[suggestion.id] ?? "pending";
+    summary[state] += 1;
+    if (state !== "ignored") summary.visibleSuggestionIds.push(suggestion.id);
+  }
+
+  return summary;
 }
 
 const ROLE_MINIMUMS: Record<ConnectivityRole, { inbound: number; outbound: number }> = {
