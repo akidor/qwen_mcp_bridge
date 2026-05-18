@@ -18,6 +18,24 @@ import {
   type ClusterId,
   type NodeKind,
 } from "./architectureData";
+import {
+  analyzeArchitectureGraph,
+  type ArchitectureConnectivityReport,
+  type ConnectivitySeverity,
+  type NodeConnectivityStatus,
+} from "./architectureGraph";
+
+const CONNECTIVITY_COLORS: Record<ConnectivitySeverity, string> = {
+  ok: "#22c55e",
+  weak: "#f59e0b",
+  broken: "#ef4444",
+};
+
+const CONNECTIVITY_LABELS: Record<ConnectivitySeverity, string> = {
+  ok: "정상",
+  weak: "취약",
+  broken: "단절",
+};
 
 function arcPoints(from: ArchNode, to: ArchNode, curve = 0) {
   const start = new THREE.Vector3(...from.position);
@@ -69,15 +87,19 @@ function HoloNode({
   node,
   selected,
   dim,
+  connectivityStatus,
   onSelect,
 }: {
   node: ArchNode;
   selected: boolean;
   dim: boolean;
+  connectivityStatus: NodeConnectivityStatus;
   onSelect: (id: string) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const color = KIND_COLORS[node.kind];
+  const issueColor = CONNECTIVITY_COLORS[connectivityStatus.severity];
+  const hasIssue = connectivityStatus.severity !== "ok";
   const size = node.kind === "bridge" || node.kind === "model" || node.kind === "tooling" ? 0.31 : 0.24;
   useFrame(({ clock }) => {
     const group = groupRef.current;
@@ -109,9 +131,15 @@ function HoloNode({
           <torusGeometry args={[size * 1.35, 0.01, 10, 72]} />
           <meshBasicMaterial color="#f8fafc" transparent opacity={dim ? 0.04 : selected ? 0.72 : 0.22} />
         </mesh>
+        {hasIssue && (
+          <mesh rotation={[Math.PI / 2, Math.PI / 5, 0]}>
+            <torusGeometry args={[size * 2.18, 0.018, 10, 96]} />
+            <meshBasicMaterial color={issueColor} transparent opacity={dim ? 0.08 : selected ? 0.9 : 0.54} />
+          </mesh>
+        )}
       </group>
       <Html position={[0, -0.62, 0]} center distanceFactor={8.5} style={{ pointerEvents: "none" }}>
-        <div className={`arch-node-label ${selected ? "selected" : ""} ${dim ? "dim" : ""}`}>
+        <div className={`arch-node-label ${selected ? "selected" : ""} ${dim ? "dim" : ""} ${hasIssue ? connectivityStatus.severity : ""}`}>
           <strong>{node.label}</strong>
           <span>{node.caption}</span>
         </div>
@@ -120,25 +148,34 @@ function HoloNode({
   );
 }
 
-function ClusterHalo({ cluster, dim }: { cluster: ArchCluster; dim: boolean }) {
+function ClusterHalo({
+  cluster,
+  dim,
+  severity,
+}: {
+  cluster: ArchCluster;
+  dim: boolean;
+  severity: ConnectivitySeverity;
+}) {
   const ref = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
     if (!ref.current) return;
     ref.current.rotation.y = clock.elapsedTime * 0.12;
     ref.current.rotation.x = Math.sin(clock.elapsedTime * 0.2 + cluster.center[0]) * 0.035;
   });
+  const color = severity === "ok" ? cluster.color : CONNECTIVITY_COLORS[severity];
   return (
     <group ref={ref} position={cluster.center}>
       <mesh>
         <sphereGeometry args={[cluster.radius, 24, 24]} />
-        <meshBasicMaterial color={cluster.color} transparent opacity={dim ? 0.01 : 0.035} wireframe />
+        <meshBasicMaterial color={color} transparent opacity={dim ? 0.01 : severity === "ok" ? 0.035 : 0.06} wireframe />
       </mesh>
       <mesh rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[cluster.radius * 0.92, 0.008, 8, 96]} />
-        <meshBasicMaterial color={cluster.color} transparent opacity={dim ? 0.035 : 0.28} />
+        <meshBasicMaterial color={color} transparent opacity={dim ? 0.035 : severity === "ok" ? 0.28 : 0.48} />
       </mesh>
       <Html position={[0, cluster.radius * 0.9, 0]} center distanceFactor={10.5} style={{ pointerEvents: "none" }}>
-        <div className={`arch-cluster-label ${dim ? "dim" : ""}`} style={{ borderColor: cluster.color, color: cluster.color }}>
+        <div className={`arch-cluster-label ${dim ? "dim" : ""} ${severity !== "ok" ? severity : ""}`} style={{ borderColor: color, color }}>
           <strong>{cluster.label}</strong>
           <span>{cluster.caption}</span>
         </div>
@@ -173,10 +210,12 @@ function HoloRings() {
 function ArchitectureScene({
   selectedId,
   activeClusters,
+  connectivityReport,
   onSelect,
 }: {
   selectedId: string;
   activeClusters: Set<ClusterId>;
+  connectivityReport: ArchitectureConnectivityReport;
   onSelect: (id: string) => void;
 }) {
   const networkRef = useRef<THREE.Group>(null);
@@ -192,9 +231,17 @@ function ArchitectureScene({
       <pointLight position={[5, 3, -4]} intensity={0.85} color="#f59e0b" />
       <group ref={networkRef}>
         <HoloRings />
-        {ARCH_CLUSTERS.map((cluster) => (
-          <ClusterHalo key={cluster.id} cluster={cluster} dim={!activeClusters.has(cluster.id)} />
-        ))}
+        {ARCH_CLUSTERS.map((cluster) => {
+          const status = connectivityReport.clusterStatusById[cluster.id];
+          return (
+            <ClusterHalo
+              key={cluster.id}
+              cluster={cluster}
+              dim={!activeClusters.has(cluster.id)}
+              severity={status?.severity ?? "ok"}
+            />
+          );
+        })}
         {ARCH_LINKS.map((link, index) => {
           const from = nodeById(link.from);
           const to = nodeById(link.to);
@@ -209,6 +256,7 @@ function ArchitectureScene({
             node={node}
             selected={node.id === selectedId}
             dim={!activeClusters.has(node.cluster)}
+            connectivityStatus={connectivityReport.nodeStatusById[node.id]}
             onSelect={onSelect}
           />
         ))}
@@ -222,10 +270,12 @@ function ArchitectureScene({
 function FlowList({
   selectedId,
   activeClusters,
+  connectivityReport,
   onSelect,
 }: {
   selectedId: string;
   activeClusters: Set<ClusterId>;
+  connectivityReport: ArchitectureConnectivityReport;
   onSelect: (id: string) => void;
 }) {
   return (
@@ -233,10 +283,11 @@ function FlowList({
       {FLOW_NODE_IDS.map((id, index) => {
         const node = nodeById(id);
         const dim = !activeClusters.has(node.cluster);
+        const severity = connectivityReport.nodeStatusById[id]?.severity ?? "ok";
         return (
           <button
             key={id}
-            className={`arch-flow-step ${selectedId === id ? "active" : ""} ${dim ? "dim" : ""}`}
+            className={`arch-flow-step ${selectedId === id ? "active" : ""} ${dim ? "dim" : ""} ${severity !== "ok" ? severity : ""}`}
             onClick={() => onSelect(id)}
             style={{ borderColor: KIND_COLORS[node.kind] }}
           >
@@ -252,7 +303,9 @@ function FlowList({
 export default function ArchitectureView({ onClose }: { onClose: () => void }) {
   const [selectedId, setSelectedId] = useState("bridge");
   const [activeClusters, setActiveClusters] = useState<Set<ClusterId>>(() => new Set(TOPOLOGY_CLUSTER_IDS));
+  const connectivityReport = useMemo(() => analyzeArchitectureGraph(ARCH_NODES, ARCH_LINKS, ARCH_CLUSTERS), []);
   const selected = nodeById(selectedId);
+  const selectedConnectivity = connectivityReport.nodeStatusById[selectedId];
   const inbound = ARCH_LINKS.filter((link) => link.to === selectedId).length;
   const outbound = ARCH_LINKS.filter((link) => link.from === selectedId).length;
   const activeKinds = useMemo(() => {
@@ -285,7 +338,12 @@ export default function ArchitectureView({ onClose }: { onClose: () => void }) {
     <main className="architecture-page">
       <Canvas className="architecture-canvas" dpr={[1, 2]} gl={{ antialias: true, alpha: true }}>
         <color attach="background" args={["#081018"]} />
-        <ArchitectureScene selectedId={selectedId} activeClusters={activeClusters} onSelect={setSelectedId} />
+        <ArchitectureScene
+          selectedId={selectedId}
+          activeClusters={activeClusters}
+          connectivityReport={connectivityReport}
+          onSelect={setSelectedId}
+        />
       </Canvas>
 
       <header className="arch-topbar">
@@ -305,6 +363,28 @@ export default function ArchitectureView({ onClose }: { onClose: () => void }) {
           <span>out {outbound}</span>
           <span>{selected.position.map((v) => v.toFixed(1)).join(" / ")}</span>
         </div>
+        <div className={`arch-connectivity-card ${selectedConnectivity.severity}`}>
+          <div className="arch-connectivity-head">
+            <span>연결성 분석</span>
+            <strong style={{ color: CONNECTIVITY_COLORS[selectedConnectivity.severity] }}>
+              {CONNECTIVITY_LABELS[selectedConnectivity.severity]}
+            </strong>
+          </div>
+          <div className="arch-connectivity-stats">
+            <span>role {selectedConnectivity.role}</span>
+            <span>cross in {selectedConnectivity.crossInbound}</span>
+            <span>cross out {selectedConnectivity.crossOutbound}</span>
+          </div>
+          {selectedConnectivity.reasons.length > 0 ? (
+            <ul className="arch-connectivity-reasons">
+              {selectedConnectivity.reasons.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>역할 기준의 최소 연결 조건을 충족합니다.</p>
+          )}
+        </div>
         <ul>
           {selected.details.map((detail) => (
             <li key={detail}>{detail}</li>
@@ -321,8 +401,10 @@ export default function ArchitectureView({ onClose }: { onClose: () => void }) {
           {ARCH_CLUSTERS.map((cluster) => {
             const active = activeClusters.has(cluster.id);
             const nodeCount = ARCH_NODES.filter((node) => node.cluster === cluster.id).length;
+            const clusterStatus = connectivityReport.clusterStatusById[cluster.id];
+            const severity = clusterStatus?.severity ?? "ok";
             return (
-              <div key={cluster.id} className={`arch-cluster-row ${active ? "is-on" : "is-off"}`}>
+              <div key={cluster.id} className={`arch-cluster-row ${active ? "is-on" : "is-off"} ${severity !== "ok" ? severity : ""}`}>
                 <button
                   type="button"
                   className="arch-cluster-toggle"
@@ -334,8 +416,9 @@ export default function ArchitectureView({ onClose }: { onClose: () => void }) {
                   <i style={{ background: cluster.color, opacity: active ? 1 : 0.24 }} />
                   <span>
                     <strong>{cluster.label}</strong>
-                    <em>{nodeCount} nodes</em>
+                    <em>{nodeCount} nodes · boundary {clusterStatus?.boundary ?? 0}</em>
                   </span>
+                  {severity !== "ok" && <b>{CONNECTIVITY_LABELS[severity]}</b>}
                 </button>
                 <button
                   type="button"
@@ -359,9 +442,41 @@ export default function ArchitectureView({ onClose }: { onClose: () => void }) {
             </span>
           ))}
         </div>
+        <h3>연결성 분석</h3>
+        <div className="arch-connectivity-summary">
+          <span>issues {connectivityReport.summary.issueCount}</span>
+          <span>weak nodes {connectivityReport.summary.weakNodeIds.length}</span>
+          <span>weak clusters {connectivityReport.summary.weakClusterIds.length}</span>
+        </div>
+        <div className="arch-weak-node-list">
+          {connectivityReport.summary.weakNodeIds.slice(0, 5).map((id) => {
+            const status = connectivityReport.nodeStatusById[id];
+            return (
+              <button key={id} type="button" onClick={() => setSelectedId(id)}>
+                <i style={{ background: CONNECTIVITY_COLORS[status.severity] }} />
+                <span>{status.label}</span>
+              </button>
+            );
+          })}
+          {connectivityReport.summary.weakClusterIds.map((id) => {
+            const status = connectivityReport.clusterStatusById[id];
+            if (!status) return null;
+            return (
+              <button key={id} type="button" onClick={() => isolateCluster(id)}>
+                <i style={{ background: CONNECTIVITY_COLORS[status.severity] }} />
+                <span>{status.label} cluster</span>
+              </button>
+            );
+          })}
+        </div>
       </section>
 
-      <FlowList selectedId={selectedId} activeClusters={activeClusters} onSelect={setSelectedId} />
+      <FlowList
+        selectedId={selectedId}
+        activeClusters={activeClusters}
+        connectivityReport={connectivityReport}
+        onSelect={setSelectedId}
+      />
     </main>
   );
 }

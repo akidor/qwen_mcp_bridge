@@ -1,5 +1,7 @@
 export type NodeKind = "interface" | "bridge" | "model" | "policy" | "tooling" | "domain" | "data" | "render";
 
+export type ConnectivityRole = "source" | "sink" | "processor" | "guard" | "diagnostic";
+
 export type ClusterId =
   | "interface"
   | "bridge"
@@ -26,6 +28,7 @@ export interface ArchNode {
   caption: string;
   kind: NodeKind;
   cluster: ClusterId;
+  connectivityRole?: ConnectivityRole;
   position: [number, number, number];
   details: string[];
 }
@@ -192,6 +195,7 @@ export const ARCH_NODES: ArchNode[] = [
     caption: "자연어 요청",
     kind: "interface",
     cluster: "interface",
+    connectivityRole: "source",
     position: [-7.1, 1.1, 0],
     details: ["주소/주변/통계/시각화 같은 말을 입력", "후속 발화는 직전 기준지와 반경을 이어받아야 함"],
   },
@@ -255,6 +259,7 @@ export const ARCH_NODES: ArchNode[] = [
     caption: "_STATS_RE",
     kind: "policy",
     cluster: "routing",
+    connectivityRole: "guard",
     position: [-2.0, 3.32, 0.78],
     details: [
       "통계치/몇 개/얼마나 있어/분포 같은 표현을 existing_building_statistics로 유도",
@@ -267,6 +272,7 @@ export const ARCH_NODES: ArchNode[] = [
     caption: "previous_context",
     kind: "policy",
     cluster: "routing",
+    connectivityRole: "guard",
     position: [-0.92, 3.05, -0.82],
     details: [
       "다세대만 추려봐, 시각화만 해봐 같은 짧은 후속질의에 직전 기준지/반경/필터를 재사용",
@@ -291,6 +297,7 @@ export const ARCH_NODES: ArchNode[] = [
     caption: "routing regressions",
     kind: "policy",
     cluster: "routing",
+    connectivityRole: "guard",
     position: [-3.18, 3.08, -0.95],
     details: [
       "양재동/문정동/다세대만/시각화만 같은 실패 사례를 회귀 테스트로 고정",
@@ -381,6 +388,7 @@ export const ARCH_NODES: ArchNode[] = [
     caption: "ready / failed domains",
     kind: "tooling",
     cluster: "mcp-pool",
+    connectivityRole: "diagnostic",
     position: [4.35, 0.95, -0.35],
     details: [
       "healthz에 ready_domains, failed_domains, stdio_tool_count, ui_tool_count를 노출",
@@ -450,6 +458,7 @@ export const ARCH_NODES: ArchNode[] = [
     caption: "공공/공간 데이터",
     kind: "data",
     cluster: "data",
+    connectivityRole: "sink",
     position: [7.25, -0.3, 0.2],
     details: ["필지 geometry, 건축물대장, WMS/공간 데이터를 제공", "누락/샘플링 여부를 validator가 확인해야 함"],
   },
@@ -522,6 +531,7 @@ export const ARCH_NODES: ArchNode[] = [
     caption: "MapLibre 화면",
     kind: "render",
     cluster: "rendering",
+    connectivityRole: "sink",
     position: [-0.95, -1.85, 0.25],
     details: ["applyToolResult 결과를 최종 MapLibre source/layer/popup/focus로 렌더링", "시각화 실패는 LLM 답변이 아니라 Parser → Filter → Layer → Viewport 체인에서 추적"],
   },
