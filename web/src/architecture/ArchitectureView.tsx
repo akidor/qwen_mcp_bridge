@@ -306,6 +306,9 @@ export default function ArchitectureView({ onClose }: { onClose: () => void }) {
   const connectivityReport = useMemo(() => analyzeArchitectureGraph(ARCH_NODES, ARCH_LINKS, ARCH_CLUSTERS), []);
   const selected = nodeById(selectedId);
   const selectedConnectivity = connectivityReport.nodeStatusById[selectedId];
+  const selectedSuggestions = connectivityReport.suggestedLinks.filter(
+    (suggestion) => suggestion.from === selectedId || suggestion.to === selectedId,
+  );
   const inbound = ARCH_LINKS.filter((link) => link.to === selectedId).length;
   const outbound = ARCH_LINKS.filter((link) => link.from === selectedId).length;
   const activeKinds = useMemo(() => {
@@ -384,6 +387,17 @@ export default function ArchitectureView({ onClose }: { onClose: () => void }) {
           ) : (
             <p>역할 기준의 최소 연결 조건을 충족합니다.</p>
           )}
+          {selectedSuggestions.length > 0 && (
+            <div className="arch-suggestion-panel">
+              <h3>권장 보강</h3>
+              {selectedSuggestions.map((suggestion) => (
+                <button key={suggestion.id} type="button" onClick={() => setSelectedId(suggestion.from)}>
+                  <strong>{suggestion.from} → {suggestion.to}</strong>
+                  <span>{suggestion.reason}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <ul>
           {selected.details.map((detail) => (
@@ -448,6 +462,9 @@ export default function ArchitectureView({ onClose }: { onClose: () => void }) {
           <span>weak nodes {connectivityReport.summary.weakNodeIds.length}</span>
           <span>weak clusters {connectivityReport.summary.weakClusterIds.length}</span>
         </div>
+        <div className="arch-connectivity-summary arch-connectivity-summary-single">
+          <span>suggested links {connectivityReport.summary.suggestedLinkCount}</span>
+        </div>
         <div className="arch-weak-node-list">
           {connectivityReport.summary.weakNodeIds.slice(0, 5).map((id) => {
             const status = connectivityReport.nodeStatusById[id];
@@ -468,6 +485,17 @@ export default function ArchitectureView({ onClose }: { onClose: () => void }) {
               </button>
             );
           })}
+        </div>
+        <h3>권장 보강</h3>
+        <div className="arch-suggestion-list">
+          {connectivityReport.suggestedLinks.map((suggestion) => (
+            <button key={suggestion.id} type="button" onClick={() => setSelectedId(suggestion.from)}>
+              <span>
+                <strong>{suggestion.from} → {suggestion.to}</strong>
+                <em>{suggestion.source} · {suggestion.confidence}</em>
+              </span>
+            </button>
+          ))}
         </div>
       </section>
 

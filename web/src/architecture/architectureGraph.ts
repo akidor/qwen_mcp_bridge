@@ -35,16 +35,28 @@ export interface ClusterConnectivityStatus {
   reasons: string[];
 }
 
+export interface SuggestedLinkRecommendation {
+  id: string;
+  from: string;
+  to: string;
+  label: string;
+  reason: string;
+  confidence: "high" | "medium" | "low";
+  source: "weak-node" | "weak-cluster";
+}
+
 export interface ArchitectureConnectivityReport {
   nodeStatusById: Record<string, NodeConnectivityStatus>;
   clusterStatusById: Partial<Record<ClusterId, ClusterConnectivityStatus>>;
   invalidLinks: LinkEndpointIssue[];
   isolatedNodes: string[];
+  suggestedLinks: SuggestedLinkRecommendation[];
   summary: {
     weakNodeIds: string[];
     brokenNodeIds: string[];
     weakClusterIds: ClusterId[];
     brokenClusterIds: ClusterId[];
+    suggestedLinkCount: number;
     issueCount: number;
   };
 }
@@ -64,6 +76,79 @@ function nodeRole(node: ArchNode): ConnectivityRole {
 function nodeSeverity(total: number, reasons: string[]): ConnectivitySeverity {
   if (total === 0) return "broken";
   return reasons.length > 0 ? "weak" : "ok";
+}
+
+function linkId(from: string, to: string) {
+  return `${from}->${to}`;
+}
+
+function hasLink(links: readonly ArchLink[], from: string, to: string) {
+  return links.some((link) => link.from === from && link.to === to);
+}
+
+function appendSuggestion(
+  suggestions: SuggestedLinkRecommendation[],
+  links: readonly ArchLink[],
+  suggestion: Omit<SuggestedLinkRecommendation, "id">,
+) {
+  if (suggestion.from === suggestion.to) return;
+  if (hasLink(links, suggestion.from, suggestion.to)) return;
+  const id = linkId(suggestion.from, suggestion.to);
+  if (suggestions.some((existing) => existing.id === id)) return;
+  suggestions.push({ id, ...suggestion });
+}
+
+function recommendedOutboundTarget(node: ArchNode, nodesById: Map<string, ArchNode>): string | null {
+  if (node.cluster === "domains" && nodesById.has("polygon")) return "polygon";
+  if (node.cluster === "rendering" && nodesById.has("web")) return "web";
+  if (node.cluster === "routing" && node.id !== "routingHintBuilder" && nodesById.has("routingHintBuilder")) return "routingHintBuilder";
+  if (node.cluster === "mcp-pool" && node.id !== "pool" && nodesById.has("pool")) return "pool";
+  if (node.cluster === "tool-loop" && nodesById.has("web")) return "web";
+  return null;
+}
+
+function buildSuggestedLinks(
+  nodes: readonly ArchNode[],
+  links: readonly ArchLink[],
+  clusterStatusById: Partial<Record<ClusterId, ClusterConnectivityStatus>>,
+  nodeStatusById: Record<string, NodeConnectivityStatus>,
+): SuggestedLinkRecommendation[] {
+  const suggestions: SuggestedLinkRecommendation[] = [];
+  const nodesById = new Map(nodes.map((node) => [node.id, node]));
+
+  for (const node of nodes) {
+    const status = nodeStatusById[node.id];
+    if (!status || status.severity !== "weak") continue;
+    if (!status.reasons.some((reason) => reason.includes("outbound"))) continue;
+
+    const targetId = recommendedOutboundTarget(node, nodesById);
+    if (!targetId) continue;
+    const target = nodesById.get(targetId);
+    if (!target) continue;
+
+    appendSuggestion(suggestions, links, {
+      from: node.id,
+      to: target.id,
+      label: `${node.label} 후속 연결`,
+      reason: `${node.label}은 outbound 연결이 부족합니다. ${target.label}로 결과 소비 경로를 연결하면 종착 없는 도메인 흐름을 줄일 수 있습니다.`,
+      confidence: "medium",
+      source: "weak-node",
+    });
+  }
+
+  const rendering = clusterStatusById.rendering;
+  if (rendering?.severity === "weak" && nodesById.has("map") && nodesById.has("web")) {
+    appendSuggestion(suggestions, links, {
+      from: "map",
+      to: "web",
+      label: "render feedback",
+      reason: "Map Renderer 클러스터는 외부 boundary가 1개뿐입니다. 렌더 완료, 선택, viewport 상태를 React Web으로 되돌리는 feedback link를 명시하면 클러스터 경계가 닫힙니다.",
+      confidence: "high",
+      source: "weak-cluster",
+    });
+  }
+
+  return suggestions;
 }
 
 export function analyzeArchitectureGraph(
@@ -197,17 +282,20 @@ export function analyzeArchitectureGraph(
   const brokenClusterIds = Object.values(clusterStatusById)
     .filter((status): status is ClusterConnectivityStatus => Boolean(status) && status.severity === "broken")
     .map((status) => status.id);
+  const suggestedLinks = buildSuggestedLinks(nodes, links, clusterStatusById, nodeStatusById);
 
   return {
     nodeStatusById,
     clusterStatusById,
     invalidLinks,
     isolatedNodes,
+    suggestedLinks,
     summary: {
       weakNodeIds,
       brokenNodeIds,
       weakClusterIds,
       brokenClusterIds,
+      suggestedLinkCount: suggestedLinks.length,
       issueCount: invalidLinks.length + weakNodeIds.length + brokenNodeIds.length + weakClusterIds.length + brokenClusterIds.length,
     },
   };

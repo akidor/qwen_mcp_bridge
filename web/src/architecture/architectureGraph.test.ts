@@ -39,4 +39,27 @@ describe("architecture graph connectivity analysis", () => {
     expect(mcpPool?.boundary).toBeGreaterThanOrEqual(2);
     expect(report.summary.weakClusterIds).toEqual(["rendering"]);
   });
+
+  it("recommends concrete links that would improve weak nodes and cluster boundaries", () => {
+    const report = analyzeArchitectureGraph(ARCH_NODES, ARCH_LINKS, ARCH_CLUSTERS);
+
+    expect(report.suggestedLinks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          from: "design",
+          to: "polygon",
+          source: "weak-node",
+          confidence: "medium",
+        }),
+        expect.objectContaining({
+          from: "map",
+          to: "web",
+          source: "weak-cluster",
+          confidence: "high",
+        }),
+      ]),
+    );
+    expect(report.summary.suggestedLinkCount).toBe(report.suggestedLinks.length);
+    expect(report.suggestedLinks.some((link) => link.from === "analyze" && link.to === "polygon")).toBe(false);
+  });
 });
