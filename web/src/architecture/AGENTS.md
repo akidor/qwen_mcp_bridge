@@ -28,6 +28,10 @@
 
 ## 변경 원칙
 
+- 새 기능, MCP 서버/도구, tool loop 단계, intent/routing 단계, domain analyzer, map renderer, popup/layer workflow처럼 실제 시스템 구성요소나 연결 흐름이 바뀌면 3D 구조도도 함께 갱신합니다.
+  - 새 구성요소는 `architectureData.ts`의 노드/클러스터/flow에 반영합니다.
+  - 새 호출·데이터·피드백 흐름은 `ARCH_LINKS`에 반영하거나, 확정 전이면 suggested link/preview로 먼저 표현합니다.
+  - 구조도에 반영하지 않는 경우에는 “내부 구현 세부라 구조 경계 변화가 없음”처럼 이유를 완료 보고에 남깁니다.
 - 구조 의미가 바뀌는 변경은 테스트를 먼저 작성합니다.
   - 새 노드/링크/클러스터: `architectureData.test.ts`
   - 새 분석 규칙/권장안: `architectureGraph.test.ts`
