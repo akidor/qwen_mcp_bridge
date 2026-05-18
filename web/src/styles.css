@@ -2379,6 +2379,57 @@ input, textarea, button, select {
 .arch-connectivity-reasons {
   margin-top: 9px !important;
 }
+.arch-preview-toggle {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  margin-top: 9px;
+  padding: 0 9px;
+  border-radius: 7px;
+  border: 1px solid rgba(245, 158, 11, 0.26);
+  background: rgba(15, 23, 42, 0.56);
+  color: #e5e7eb;
+  cursor: pointer;
+}
+.arch-preview-toggle:hover {
+  border-color: rgba(245, 158, 11, 0.62);
+  background: rgba(40, 28, 12, 0.62);
+}
+.arch-preview-toggle i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #fbbf24;
+  box-shadow: 0 0 18px rgba(251, 191, 36, 0.72);
+}
+.arch-preview-toggle span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 800;
+}
+.arch-preview-toggle b {
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+  font-size: 10px;
+  line-height: 1;
+}
+.arch-preview-toggle.is-off {
+  opacity: 0.52;
+  border-color: rgba(148, 163, 184, 0.2);
+}
+.arch-preview-toggle.is-off i {
+  background: #64748b;
+  box-shadow: none;
+}
 .arch-weak-node-list {
   display: grid;
   gap: 6px;

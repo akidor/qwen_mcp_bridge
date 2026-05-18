@@ -23,6 +23,7 @@ import {
   type ArchitectureConnectivityReport,
   type ConnectivitySeverity,
   type NodeConnectivityStatus,
+  type SuggestedLinkRecommendation,
 } from "./architectureGraph";
 
 const CONNECTIVITY_COLORS: Record<ConnectivitySeverity, string> = {
@@ -79,6 +80,36 @@ function LinkMesh({ link, index, dim }: { link: ArchLink; index: number; dim: bo
     <group>
       <Line points={points} color={hexNumber(color)} lineWidth={dim ? 0.8 : 1.4} transparent opacity={dim ? 0.08 : 0.48} />
       {!dim && <Signal points={points} color={color} phase={(index * 0.19) % 1} />}
+    </group>
+  );
+}
+
+function SuggestedLinkMesh({ suggestion, index, dim }: { suggestion: SuggestedLinkRecommendation; index: number; dim: boolean }) {
+  const from = nodeById(suggestion.from);
+  const to = nodeById(suggestion.to);
+  const color = suggestion.confidence === "high" ? "#fbbf24" : "#f59e0b";
+  const points = useMemo(() => arcPoints(from, to, suggestion.curve), [from, to, suggestion.curve]);
+  const segments = useMemo(() => {
+    const result: THREE.Vector3[][] = [];
+    for (let i = 0; i < points.length - 1; i += 2) {
+      result.push([points[i], points[i + 1]]);
+    }
+    return result;
+  }, [points]);
+
+  return (
+    <group>
+      {segments.map((segment, segmentIndex) => (
+        <Line
+          key={`${suggestion.id}-${segmentIndex}`}
+          points={segment}
+          color={hexNumber(color)}
+          lineWidth={suggestion.confidence === "high" ? 2.1 : 1.6}
+          transparent
+          opacity={dim ? 0.1 : 0.72}
+        />
+      ))}
+      {!dim && <Signal points={points} color={color} phase={(index * 0.29) % 1} />}
     </group>
   );
 }
@@ -211,11 +242,13 @@ function ArchitectureScene({
   selectedId,
   activeClusters,
   connectivityReport,
+  previewLinksVisible,
   onSelect,
 }: {
   selectedId: string;
   activeClusters: Set<ClusterId>;
   connectivityReport: ArchitectureConnectivityReport;
+  previewLinksVisible: boolean;
   onSelect: (id: string) => void;
 }) {
   const networkRef = useRef<THREE.Group>(null);
@@ -248,6 +281,14 @@ function ArchitectureScene({
           const visible = activeClusters.has(from.cluster) && activeClusters.has(to.cluster);
           return (
             <LinkMesh key={`${link.from}-${link.to}`} link={link} index={index} dim={!visible} />
+          );
+        })}
+        {previewLinksVisible && connectivityReport.suggestedLinks.map((suggestion, index) => {
+          const from = nodeById(suggestion.from);
+          const to = nodeById(suggestion.to);
+          const visible = activeClusters.has(from.cluster) && activeClusters.has(to.cluster);
+          return (
+            <SuggestedLinkMesh key={suggestion.id} suggestion={suggestion} index={index} dim={!visible} />
           );
         })}
         {ARCH_NODES.map((node) => (
@@ -303,6 +344,7 @@ function FlowList({
 export default function ArchitectureView({ onClose }: { onClose: () => void }) {
   const [selectedId, setSelectedId] = useState("bridge");
   const [activeClusters, setActiveClusters] = useState<Set<ClusterId>>(() => new Set(TOPOLOGY_CLUSTER_IDS));
+  const [previewLinksVisible, setPreviewLinksVisible] = useState(true);
   const connectivityReport = useMemo(() => analyzeArchitectureGraph(ARCH_NODES, ARCH_LINKS, ARCH_CLUSTERS), []);
   const selected = nodeById(selectedId);
   const selectedConnectivity = connectivityReport.nodeStatusById[selectedId];
@@ -345,6 +387,7 @@ export default function ArchitectureView({ onClose }: { onClose: () => void }) {
           selectedId={selectedId}
           activeClusters={activeClusters}
           connectivityReport={connectivityReport}
+          previewLinksVisible={previewLinksVisible}
           onSelect={setSelectedId}
         />
       </Canvas>
@@ -457,6 +500,16 @@ export default function ArchitectureView({ onClose }: { onClose: () => void }) {
           ))}
         </div>
         <h3>연결성 분석</h3>
+        <button
+          type="button"
+          className={`arch-preview-toggle ${previewLinksVisible ? "is-on" : "is-off"}`}
+          onClick={() => setPreviewLinksVisible((visible) => !visible)}
+          aria-pressed={previewLinksVisible}
+        >
+          <i />
+          <span>권장 링크 미리보기</span>
+          <b>{previewLinksVisible ? "on" : "off"}</b>
+        </button>
         <div className="arch-connectivity-summary">
           <span>issues {connectivityReport.summary.issueCount}</span>
           <span>weak nodes {connectivityReport.summary.weakNodeIds.length}</span>

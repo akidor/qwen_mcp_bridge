@@ -41,6 +41,7 @@ export interface SuggestedLinkRecommendation {
   to: string;
   label: string;
   reason: string;
+  curve: number;
   confidence: "high" | "medium" | "low";
   source: "weak-node" | "weak-cluster";
 }
@@ -131,6 +132,7 @@ function buildSuggestedLinks(
       to: target.id,
       label: `${node.label} 후속 연결`,
       reason: `${node.label}은 outbound 연결이 부족합니다. ${target.label}로 결과 소비 경로를 연결하면 종착 없는 도메인 흐름을 줄일 수 있습니다.`,
+      curve: node.id === "otherDomains" ? -0.55 : 0.55,
       confidence: "medium",
       source: "weak-node",
     });
@@ -143,6 +145,7 @@ function buildSuggestedLinks(
       to: "web",
       label: "render feedback",
       reason: "Map Renderer 클러스터는 외부 boundary가 1개뿐입니다. 렌더 완료, 선택, viewport 상태를 React Web으로 되돌리는 feedback link를 명시하면 클러스터 경계가 닫힙니다.",
+      curve: 0.9,
       confidence: "high",
       source: "weak-cluster",
     });

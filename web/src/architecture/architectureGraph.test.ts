@@ -50,15 +50,18 @@ describe("architecture graph connectivity analysis", () => {
           to: "polygon",
           source: "weak-node",
           confidence: "medium",
+          curve: expect.any(Number),
         }),
         expect.objectContaining({
           from: "map",
           to: "web",
           source: "weak-cluster",
           confidence: "high",
+          curve: expect.any(Number),
         }),
       ]),
     );
+    expect(report.suggestedLinks.map((link) => link.id)).toEqual(["design->polygon", "otherDomains->polygon", "map->web"]);
     expect(report.summary.suggestedLinkCount).toBe(report.suggestedLinks.length);
     expect(report.suggestedLinks.some((link) => link.from === "analyze" && link.to === "polygon")).toBe(false);
   });
