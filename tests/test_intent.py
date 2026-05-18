@@ -62,6 +62,16 @@ def test_current_parcel_stats_intent():
     assert classify_intent(_user("이 필지 주변 다세대/다가구 현황")) == "existing_building_stats"
 
 
+def test_recent_context_with_current_parcel_context_is_stats_intent():
+    assert (
+        classify_intent(
+            _user("방금 그거 주변 다세대주택 얼마나 있어?"),
+            has_current_parcel_context=True,
+        )
+        == "existing_building_stats"
+    )
+
+
 def test_extract_existing_use_hint():
     assert extract_existing_use_hint("양재동 344-7 다세대 가능해?") == "다세대"
     assert extract_existing_use_hint("이 필지 다가구 가능?") == "다가구"

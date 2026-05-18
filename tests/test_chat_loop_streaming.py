@@ -147,6 +147,44 @@ async def test_stream_emits_routing_debug_before_model_chunks():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_stream_routing_debug_uses_current_parcel_context_for_recent_followup():
+    pool = make_pool_mock_with_tool("analyze__existing_building_statistics", "{}")
+    respx.post("http://fake-vllm/v1/chat/completions").mock(
+        return_value=httpx.Response(200, text=(
+            'data: {"id":"y","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{"role":"assistant","content":"통계입니다."},"finish_reason":null}]}\n\n'
+            'data: {"id":"y","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n'
+            'data: [DONE]\n\n'
+        ))
+    )
+
+    chunks: list[bytes] = []
+    async for chunk in run_chat_streaming(
+        messages=[{"role": "user", "content": "방금 그거 주변 다세대주택 얼마나 있어?"}],
+        pool=pool,
+        vllm_base_url="http://fake-vllm/v1",
+        vllm_api_key="x",
+        model="fake-model",
+        max_iterations=5,
+        current_parcel_context={
+            "address": "서울특별시 강남구 역삼동 738-1",
+            "pnu": "1168010100107380001",
+            "centroid": {"lng": 127.0331234, "lat": 37.4989876},
+        },
+    ):
+        chunks.append(chunk)
+
+    routing_events = custom_events(chunks, "routing_debug")
+
+    assert len(routing_events) == 1
+    assert routing_events[0]["intent"] == "existing_building_stats"
+    assert routing_events[0]["anchor_type"] == "current_parcel"
+    assert routing_events[0]["anchor_text"] == "서울특별시 강남구 역삼동 738-1"
+    assert routing_events[0]["current_parcel_pnu"] == "(redacted)"
+    assert routing_events[0]["current_parcel_centroid"] == "127.033123,37.498988"
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_tool_call_end_sse_includes_result_text():
     """tool_call_end SSE 이벤트에 result_text가 포함돼야 함 (frontend auto_layer용)."""
     pool = make_pool_mock_with_tool("locate__get_parcel", '{"pnu":"123","geometry":{"type":"Polygon","coordinates":[[[127,37],[127.01,37],[127.01,37.01],[127,37.01],[127,37]]]}}')

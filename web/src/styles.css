@@ -212,6 +212,9 @@ input, textarea, button, select {
   border-color: var(--accent);
   color: var(--accent);
 }
+.routing-debug-block.has-warning .routing-debug-summary {
+  border-color: color-mix(in srgb, #d97706 54%, var(--border));
+}
 .routing-debug-badge,
 .routing-debug-title,
 .routing-debug-toggle {
@@ -224,6 +227,16 @@ input, textarea, button, select {
 }
 .routing-debug-title {
   color: var(--fg);
+}
+.routing-debug-warning-badge {
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, #d97706 42%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, #fef3c7 72%, transparent);
+  color: #92400e;
+  padding: 1px 6px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-weight: 700;
 }
 .routing-debug-bucket {
   min-width: 0;
@@ -262,6 +275,17 @@ input, textarea, button, select {
   margin: 0;
   color: var(--fg);
   overflow-wrap: anywhere;
+}
+.routing-debug-detail dl > .routing-debug-warning-row {
+  border: 1px solid color-mix(in srgb, #d97706 34%, var(--border));
+  border-radius: 6px;
+  background: color-mix(in srgb, #fef3c7 46%, transparent);
+  padding: 5px 7px;
+}
+.routing-debug-detail .routing-debug-warning-row dt,
+.routing-debug-detail .routing-debug-warning-row dd {
+  color: #92400e;
+  font-weight: 700;
 }
 .routing-debug-raw {
   margin-top: 8px;

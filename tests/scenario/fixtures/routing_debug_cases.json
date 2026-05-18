@@ -1,0 +1,189 @@
+[
+  {
+    "name": "existing_buildings_list_direct",
+    "messages": [
+      {
+        "role": "user",
+        "content": "양재동 344-7번지 근처 다세대주택 리스트"
+      }
+    ],
+    "expected": {
+      "intent": "existing_buildings",
+      "bucket": "기존 건축물 조회",
+      "anchor": {
+        "type": "address",
+        "text": "양재동 344-7번지"
+      },
+      "required_chain": {
+        "contains": [
+          "locate__search_address",
+          "locate__get_parcel",
+          "analyze__find_existing_buildings"
+        ],
+        "not_contains": [
+          "analyze__existing_building_statistics",
+          "analyze__find_parcels"
+        ]
+      },
+      "visual": {
+        "suppress": "intermediate_parcel_candidates",
+        "required": false
+      }
+    }
+  },
+  {
+    "name": "existing_building_stats_direct",
+    "messages": [
+      {
+        "role": "user",
+        "content": "문정동 118-15 근처에 다세대주택 얼마나 있어?"
+      }
+    ],
+    "expected": {
+      "intent": "existing_building_stats",
+      "bucket": "기존 건축물 통계 조회",
+      "anchor": {
+        "type": "address",
+        "text": "문정동 118-15"
+      },
+      "required_chain": {
+        "contains": [
+          "locate__search_address",
+          "locate__get_parcel",
+          "analyze__existing_building_statistics"
+        ],
+        "not_contains": [
+          "analyze__find_existing_buildings",
+          "analyze__find_parcels"
+        ]
+      },
+      "visual": {
+        "suppress": "intermediate_parcel_candidates",
+        "required": false
+      }
+    }
+  },
+  {
+    "name": "followup_filter_previous_stats_context",
+    "messages": [
+      {
+        "role": "user",
+        "content": "문정동 118-15 근처에 다세대주택 얼마나 있어?"
+      },
+      {
+        "role": "assistant",
+        "content": "use_counts 표와 matched_buildings 합계를 기준으로 통계 결과를 정리했습니다."
+      },
+      {
+        "role": "user",
+        "content": "다세대주택만 추려봐"
+      }
+    ],
+    "expected": {
+      "intent": "existing_buildings",
+      "bucket": "직전 기준 기존 건축물 필터",
+      "anchor": {
+        "type": "previous_context",
+        "text": "문정동 118-15"
+      },
+      "required_chain": {
+        "contains": [
+          "직전 기준지/반경 유지",
+          "locate__search_address(문정동 118-15)",
+          "analyze__find_existing_buildings",
+          "use_keywords=[다세대주택]"
+        ],
+        "not_contains": [
+          "analyze__existing_building_statistics",
+          "analyze__find_parcels"
+        ]
+      },
+      "visual": {
+        "suppress": "intermediate_parcel_candidates",
+        "required": false
+      }
+    }
+  },
+  {
+    "name": "followup_visualize_filtered_result",
+    "messages": [
+      {
+        "role": "user",
+        "content": "문정동 118-15 근처에 다세대주택 얼마나 있어?"
+      },
+      {
+        "role": "assistant",
+        "content": "use_counts 표와 matched_buildings 합계를 기준으로 통계 결과를 정리했습니다."
+      },
+      {
+        "role": "user",
+        "content": "다세대주택만 추려봐"
+      },
+      {
+        "role": "assistant",
+        "content": "find_existing_buildings features 중 confirmed_existing_building 항목만 추렸습니다."
+      },
+      {
+        "role": "user",
+        "content": "아니 시각화만 해봐"
+      }
+    ],
+    "expected": {
+      "intent": "existing_buildings",
+      "bucket": "직전 결과 시각화",
+      "anchor": {
+        "type": "previous_context",
+        "text": "문정동 118-15"
+      },
+      "required_chain": {
+        "contains": [
+          "직전 기준지/반경/필터 유지",
+          "locate__search_address(문정동 118-15)",
+          "analyze__find_existing_buildings",
+          "use_keywords=[다세대주택]"
+        ],
+        "not_contains": [
+          "analyze__existing_building_statistics",
+          "analyze__find_parcels"
+        ]
+      },
+      "visual": {
+        "suppress": "intermediate_parcel_candidates",
+        "required": true
+      }
+    }
+  },
+  {
+    "name": "new_build_candidates_direct",
+    "messages": [
+      {
+        "role": "user",
+        "content": "양재동 344-7 근처 다세대주택 신축 후보 필지"
+      }
+    ],
+    "expected": {
+      "intent": "new_build_candidates",
+      "bucket": "신축 후보 필지 탐색",
+      "anchor": {
+        "type": "address",
+        "text": "양재동 344-7"
+      },
+      "required_chain": {
+        "contains": [
+          "locate__search_address",
+          "locate__get_parcel",
+          "analyze__find_parcels",
+          "analyze__evaluate_buildability"
+        ],
+        "not_contains": [
+          "analyze__find_existing_buildings",
+          "analyze__existing_building_statistics"
+        ]
+      },
+      "visual": {
+        "suppress": null,
+        "required": false
+      }
+    }
+  }
+]

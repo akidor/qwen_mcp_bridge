@@ -119,6 +119,39 @@ def test_chat_completions_injects_query_routing_hint(client):
     assert b"locate__search_address -> locate__get_parcel -> analyze__find_existing_buildings" in sent
 
 
+@respx.mock
+def test_chat_completions_uses_current_parcel_metadata_for_followup_routing(client):
+    tc, _ = client
+    route = respx.post("http://fake-vllm/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json={
+            "id": "x", "object": "chat.completion", "model": "fake",
+            "choices": [{"index": 0, "finish_reason": "stop", "message": {
+                "role": "assistant", "content": "확인했습니다"
+            }}],
+        })
+    )
+
+    resp = tc.post("/v1/chat/completions", json={
+        "model": "fake",
+        "messages": [{"role": "user", "content": "여기 다세대 가능?"}],
+        "metadata": {
+            "current_parcel": {
+                "address": "서울특별시 강남구 역삼동 738-1",
+                "pnu": "1168010100107380001",
+                "centroid": {"lng": 127.0331234, "lat": 37.4989876},
+            },
+        },
+    })
+
+    assert resp.status_code == 200
+    sent = route.calls.last.request.content
+    assert "anchor_text=서울특별시 강남구 역삼동 738-1".encode() in sent
+    assert b"current_parcel_pnu=1168010100107380001" in sent
+    assert b"current_parcel_centroid=127.033123,37.498988" in sent
+    assert b"analyze__evaluate_buildability(current_parcel_pnu" in sent
+    assert b"metadata" not in sent
+
+
 def test_chat_completions_rejects_empty_messages(client):
     tc, _ = client
     resp = tc.post("/v1/chat/completions", json={"messages": []})

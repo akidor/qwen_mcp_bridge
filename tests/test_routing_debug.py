@@ -25,3 +25,34 @@ def test_routing_debug_still_reports_general_without_hint():
     assert debug["intent"] == "general"
     assert debug["routing_hint"] == ""
     assert "bucket" not in debug
+
+
+def test_routing_debug_redacts_current_parcel_pnu_by_default():
+    debug = build_routing_debug(
+        [{"role": "user", "content": "여기 다세대 가능?"}],
+        current_parcel={
+            "address": "서울특별시 강남구 역삼동 738-1",
+            "pnu": "1168010100107380001",
+            "centroid": {"lng": 127.0331234, "lat": 37.4989876},
+        },
+    )
+
+    assert debug["anchor_type"] == "current_parcel"
+    assert debug["anchor_text"] == "서울특별시 강남구 역삼동 738-1"
+    assert debug["current_parcel_pnu"] == "(redacted)"
+    assert debug["current_parcel_centroid"] == "127.033123,37.498988"
+    assert "1168010100107380001" not in str(debug)
+
+
+def test_routing_debug_allows_current_parcel_pnu_when_user_explicitly_asks():
+    debug = build_routing_debug(
+        [{"role": "user", "content": "여기 PNU 알려줘"}],
+        current_parcel={
+            "address": "서울특별시 강남구 역삼동 738-1",
+            "pnu": "1168010100107380001",
+            "centroid": {"lng": 127.0331234, "lat": 37.4989876},
+        },
+    )
+
+    assert debug["anchor_type"] == "current_parcel"
+    assert debug["current_parcel_pnu"] == "1168010100107380001"

@@ -197,6 +197,7 @@ async def run_chat_streaming(
     request_timeout: float = 180.0,
     extra_body: dict | None = None,
     max_tool_result_bytes: int = 0,
+    current_parcel_context: dict[str, Any] | None = None,
 ) -> AsyncIterator[bytes]:
     """SSE byte chunks를 yield. FastAPI StreamingResponse로 forward."""
     work = list(messages)
@@ -205,7 +206,7 @@ async def run_chat_streaming(
     # 의도/라우팅 메타를 가장 먼저 발화 — frontend가 시각화와 디버그 패널에 사용.
     try:
         from qwen_mcp_bridge.routing_debug import build_routing_debug
-        routing_debug = build_routing_debug(messages)
+        routing_debug = build_routing_debug(messages, current_parcel=current_parcel_context)
         intent_label = routing_debug["intent"]
         yield _sse({"type": "intent", "label": intent_label})
         yield _sse({"type": "routing_debug", **routing_debug})

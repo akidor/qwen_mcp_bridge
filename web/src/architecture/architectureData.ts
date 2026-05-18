@@ -168,11 +168,13 @@ export const QUERY_ROUTING_NODE_IDS = [
 
 export const CHAT_OBSERVABILITY_NODE_IDS = [
   "routingDebugPanel",
+  "currentParcelContext",
 ] as const;
 
 export const FLOW_NODE_IDS = [
   "user",
   "web",
+  "currentParcelContext",
   "bridge",
   "anchorExtractor",
   "intentClassifier",
@@ -223,6 +225,18 @@ export const ARCH_NODES: ArchNode[] = [
     details: [
       "routing_debug SSE event를 접이식 패널로 보여 intent, bucket, anchor, required_chain을 노출",
       "실제 tool_call_end 순서와 expected chain을 같은 assistant 메시지에서 비교",
+    ],
+  },
+  {
+    id: "currentParcelContext",
+    label: "Current Parcel Context",
+    caption: "metadata.current_parcel",
+    kind: "interface",
+    cluster: "interface",
+    position: [-6.0, 1.35, -0.7],
+    details: [
+      "필지 카드 클릭 시 address, centroid, 내부 pnu를 compact context로 저장",
+      "다음 chat request의 metadata.current_parcel로 보내 '여기/방금 그거' 후속질의를 기준 필지에 묶음",
     ],
   },
   {
@@ -567,6 +581,9 @@ export const ARCH_LINKS: ArchLink[] = [
   { from: "routingHintBuilder", to: "policy", label: "system hint", curve: 0.12 },
   { from: "intentClassifier", to: "web", label: "intent event", curve: -0.7 },
   { from: "routingHintBuilder", to: "routingDebugPanel", label: "routing_debug fields", curve: -0.55 },
+  { from: "popupCardBuilder", to: "currentParcelContext", label: "card focus context", curve: 0.42 },
+  { from: "currentParcelContext", to: "bridge", label: "metadata.current_parcel", curve: -0.38 },
+  { from: "currentParcelContext", to: "routingDebugPanel", label: "current anchor debug", curve: 0.24 },
   { from: "policy", to: "qwen", label: "tool chain guard", curve: -0.25 },
   { from: "bridge", to: "qwen", label: "messages + tools", curve: 0.15 },
   { from: "qwen", to: "loop", label: "tool_calls", curve: -0.25 },

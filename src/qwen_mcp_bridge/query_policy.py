@@ -25,6 +25,10 @@ _DISPLAY_RE = re.compile(r"위치|지도|보여|표시|가리켜|어딘지")
 _MULTIFAMILY_RE = re.compile(r"다세대|다가구|공동주택|연립")
 _BUILD_CANDIDATE_RE = re.compile(r"신축|건축|개발|매수|부지|필지|나대지|땅|짓|지을|가능|후보지")
 _CURRENT_PARCEL_RE = re.compile(r"(?:이|현재|선택(?:한|된)?)\s*(?:필지|부지|땅)|여기")
+_RECENT_CONTEXT_RE = re.compile(
+    r"방금\s*(?:그거|그\s*거|본\s*(?:거|필지|부지|땅)|선택(?:한|된)?\s*(?:거|필지|부지|땅))|"
+    r"그\s*(?:거|필지|부지|땅)"
+)
 _RADIUS_M_RE = re.compile(r"(?P<radius>\d{2,4}(?:\.\d+)?)\s*(?:m|미터)")
 _RADIUS_KM_RE = re.compile(r"(?P<radius>\d(?:\.\d+)?)\s*(?:km|킬로)")
 _VISUALIZE_FOLLOWUP_RE = re.compile(r"시각화|지도|마커|표시|띄워|그려")
@@ -53,7 +57,11 @@ _FEASIBILITY_RE = re.compile(
 _RISK_RE = re.compile(r"리스크|위험|사도\s*돼|매수.*괜찮|살까|매입.*괜찮|매수.*안전")
 
 
-def build_routing_hint(messages: list[dict[str, Any]]) -> str | None:
+def build_routing_hint(
+    messages: list[dict[str, Any]],
+    *,
+    current_parcel: dict[str, Any] | None = None,
+) -> str | None:
     """Return a compact system hint for the latest user query.
 
     The hint does not call tools. It only gives the model deterministic anchor
@@ -63,6 +71,7 @@ def build_routing_hint(messages: list[dict[str, Any]]) -> str | None:
     text = _last_user_text(messages)
     if not text:
         return None
+    current_context = _normalize_current_parcel_context(current_parcel)
 
     address = _extract_address_anchor(text)
     if address:
@@ -78,18 +87,21 @@ def build_routing_hint(messages: list[dict[str, Any]]) -> str | None:
         return _address_anchor_hint(address)
 
     # address 없이도 current_parcel 분기 — risk/detail이 nearby보다 우선.
-    if _CURRENT_PARCEL_RE.search(text):
+    if _is_current_parcel_reference(text, current_context):
         if _RISK_RE.search(text):
-            return _current_parcel_risk_hint(text)
+            return _current_parcel_risk_hint(text, current_context)
         if _DETAIL_RE.search(text) or _FEASIBILITY_RE.search(text):
             if not _NEARBY_RE.search(text):
-                return _current_parcel_detail_hint(text)
+                return _current_parcel_detail_hint(text, current_context)
 
-    if _CURRENT_PARCEL_RE.search(text) and _NEARBY_RE.search(text):
+    if _is_current_parcel_reference(text, current_context) and _NEARBY_RE.search(text):
         # 통계 의도면 stats hint, 아니면 기본 current_parcel nearby hint.
         if _STATS_RE.search(text):
-            return _current_parcel_stats_hint(text)
-        return _current_parcel_hint()
+            return _current_parcel_stats_hint(text, current_context)
+        return _current_parcel_hint(current_context)
+
+    if _is_current_parcel_reference(text, current_context) and current_context:
+        return _current_parcel_hint(current_context)
 
     use_filter = _extract_existing_use_filter(text)
     if use_filter and _previous_existing_context(messages):
@@ -142,6 +154,102 @@ def _extract_facility_anchor(text: str) -> str | None:
 
 def _clean_anchor(anchor: str) -> str:
     return re.sub(r"\s+", " ", anchor).strip()
+
+
+def _clean_context_text(value: Any, *, limit: int = 120) -> str:
+    if not isinstance(value, str):
+        return ""
+    cleaned = re.sub(r"[\r\n=]+", " ", value)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned[:limit]
+
+
+def _normalize_pnu(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    cleaned = value.strip()
+    if not re.fullmatch(r"[0-9A-Za-z_-]{4,64}", cleaned):
+        return ""
+    return cleaned
+
+
+def _normalize_centroid(value: Any) -> tuple[float, float] | None:
+    if isinstance(value, dict):
+        lng_raw = value.get("lng")
+        lat_raw = value.get("lat")
+    elif isinstance(value, (list, tuple)) and len(value) >= 2:
+        lng_raw, lat_raw = value[0], value[1]
+    else:
+        return None
+    try:
+        lng = float(lng_raw)
+        lat = float(lat_raw)
+    except (TypeError, ValueError):
+        return None
+    if not (-180 <= lng <= 180 and -90 <= lat <= 90):
+        return None
+    return lng, lat
+
+
+def _format_centroid(centroid: tuple[float, float]) -> str:
+    lng, lat = centroid
+    return f"{lng:.6f},{lat:.6f}"
+
+
+def _normalize_current_parcel_context(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    context: dict[str, Any] = {}
+    address = _clean_context_text(value.get("address"))
+    pnu = _normalize_pnu(value.get("pnu"))
+    centroid = _normalize_centroid(value.get("centroid"))
+    if address:
+        context["address"] = address
+    if pnu:
+        context["pnu"] = pnu
+    if centroid:
+        context["centroid"] = centroid
+    return context or None
+
+
+def _is_current_parcel_reference(text: str, current_context: dict[str, Any] | None = None) -> bool:
+    if _CURRENT_PARCEL_RE.search(text):
+        return True
+    return current_context is not None and bool(_RECENT_CONTEXT_RE.search(text))
+
+
+def _current_parcel_anchor_text(current_context: dict[str, Any] | None) -> str:
+    if current_context and current_context.get("address"):
+        return str(current_context["address"])
+    return "최근 선택된 필지 또는 직전 필지 도구 결과"
+
+
+def _current_parcel_context_lines(current_context: dict[str, Any] | None) -> list[str]:
+    if not current_context:
+        return []
+    lines: list[str] = []
+    if current_context.get("centroid"):
+        lines.append(f"current_parcel_centroid={_format_centroid(current_context['centroid'])}")
+    if current_context.get("pnu"):
+        lines.append(f"current_parcel_pnu={current_context['pnu']}")
+        lines.append("current_parcel_pnu_visibility=internal_tool_arg_only")
+    return lines
+
+
+def _current_parcel_fallback(current_context: dict[str, Any] | None) -> str:
+    if current_context:
+        return "fallback=현재 필지 컨텍스트가 없으면 사용자에게 기준 필지를 물어볼 것"
+    return "fallback=최근 선택된 필지가 없으면 사용자에게 기준 필지를 물어볼 것"
+
+
+def _current_parcel_answer_guard(current_context: dict[str, Any] | None, base: str) -> str:
+    if not current_context or not current_context.get("pnu"):
+        return base
+    return (
+        base
+        + " 내부 current_parcel_pnu/PNU는 도구 호출 인자로만 사용하고, "
+        "사용자가 PNU를 명시적으로 요청하지 않으면 답변 본문에 쓰지 말 것."
+    )
 
 
 def _canonical_existing_use(value: str) -> str:
@@ -349,14 +457,14 @@ def _address_anchor_hint(address: str) -> str:
     ])
 
 
-def _build_evaluate_call(text: str) -> str:
+def _build_evaluate_call(text: str, *, pnu_ref: str = "pnu") -> str:
     """텍스트에서 use_hint를 추출해 evaluate_buildability 호출 시그니처 생성."""
     # 지연 import — query_policy ↔ intent 순환 회피.
     from qwen_mcp_bridge.intent import extract_existing_use_hint
     hint = extract_existing_use_hint(text)
     if hint:
-        return f'analyze__evaluate_buildability(pnu, existing_use_hint="{hint}")'
-    return "analyze__evaluate_buildability(pnu)"
+        return f'analyze__evaluate_buildability({pnu_ref}, existing_use_hint="{hint}")'
+    return f"analyze__evaluate_buildability({pnu_ref})"
 
 
 def _address_detail_hint(text: str, address: str) -> str:
@@ -438,63 +546,97 @@ def _facility_anchor_hint(facility: str) -> str:
     ])
 
 
-def _current_parcel_detail_hint(text: str) -> str:
+def _current_parcel_detail_hint(text: str, current_context: dict[str, Any] | None = None) -> str:
     """현재 선택 필지 + 분석/가능성 — evaluate_buildability chain."""
-    chain = (
-        "최근 선택된 필지/카드/locate__get_parcel 결과의 pnu -> "
-        + _build_evaluate_call(text)
+    if current_context and current_context.get("pnu"):
+        chain = _build_evaluate_call(text, pnu_ref="current_parcel_pnu")
+    else:
+        chain = (
+            "최근 선택된 필지/카드/locate__get_parcel 결과의 pnu -> "
+            + _build_evaluate_call(text)
+        )
+    answer_guard = _current_parcel_answer_guard(
+        current_context,
+        "answer_guard=evaluate_buildability가 결정한 state·state_reason 그대로 인용. 용도지역·지목만으로 '건축 가능' 단정 금지.",
     )
     return "\n".join([
         *_routing_header(),
         "bucket=현재 선택 필지 상세 검토",
         "anchor_type=current_parcel",
-        "anchor_text=최근 선택된 필지 또는 직전 필지 도구 결과",
+        f"anchor_text={_current_parcel_anchor_text(current_context)}",
+        *_current_parcel_context_lines(current_context),
         f"required_chain={chain}",
-        "fallback=최근 선택된 필지가 없으면 사용자에게 기준 필지를 물어볼 것",
-        "answer_guard=evaluate_buildability가 결정한 state·state_reason 그대로 인용. 용도지역·지목만으로 '건축 가능' 단정 금지.",
+        _current_parcel_fallback(current_context),
+        answer_guard,
         "answer_mode=판단 상태 + 평가 사유 3-5개 + 확인 안 된 항목(현장·등기·건축물대장) 분리 표시.",
     ])
 
 
-def _current_parcel_risk_hint(text: str) -> str:
+def _current_parcel_risk_hint(text: str, current_context: dict[str, Any] | None = None) -> str:
     """현재 선택 필지 + 리스크/매수 — evaluate_buildability chain + 외부 확인 분리."""
-    chain = (
-        "최근 선택된 필지/카드/locate__get_parcel 결과의 pnu -> "
-        + _build_evaluate_call(text)
+    if current_context and current_context.get("pnu"):
+        chain = _build_evaluate_call(text, pnu_ref="current_parcel_pnu")
+    else:
+        chain = (
+            "최근 선택된 필지/카드/locate__get_parcel 결과의 pnu -> "
+            + _build_evaluate_call(text)
+        )
+    answer_guard = _current_parcel_answer_guard(
+        current_context,
+        "answer_guard=공공데이터 기반 1차 리스크만 말하고, 등기/현장/최신 건축물대장은 '추가 확인 필요'로 분리. 매수 가/불가 단정 금지.",
     )
     return "\n".join([
         *_routing_header(),
         "bucket=현재 선택 필지 매수 전 리스크 체크",
         "anchor_type=current_parcel",
-        "anchor_text=최근 선택된 필지 또는 직전 필지 도구 결과",
+        f"anchor_text={_current_parcel_anchor_text(current_context)}",
+        *_current_parcel_context_lines(current_context),
         f"required_chain={chain}",
-        "fallback=최근 선택된 필지가 없으면 사용자에게 기준 필지를 물어볼 것",
-        "answer_guard=공공데이터 기반 1차 리스크만 말하고, 등기/현장/최신 건축물대장은 '추가 확인 필요'로 분리. 매수 가/불가 단정 금지.",
+        _current_parcel_fallback(current_context),
+        answer_guard,
         "answer_mode=확인된 리스크(지목·용도지역·도로·기존 건축물) + 추가 확인 필요 항목(등기·현장·최신 건축물대장)을 분리 표시.",
     ])
 
 
-def _current_parcel_stats_hint(text: str) -> str:
+def _current_parcel_stats_hint(text: str, current_context: dict[str, Any] | None = None) -> str:
     """현재 선택 필지 + 주변 + 통계 — existing_building_statistics chain.
 
     chain: 최근 선택 필지의 geometry 중심점 → analyze__existing_building_statistics.
     """
-    chain = (
-        "최근 선택된 필지/카드/locate__get_parcel 결과의 geometry 중심점 -> "
-        "analyze__existing_building_statistics(lng, lat, radius_m=300, "
-        "use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n=400, examples_n=5)"
+    if current_context and current_context.get("centroid"):
+        chain = (
+            "current_parcel_centroid -> "
+            "analyze__existing_building_statistics(lng, lat, radius_m=300, "
+            "use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n=400, examples_n=5)"
+        )
+    elif current_context and current_context.get("pnu"):
+        chain = (
+            "current_parcel_pnu -> locate__get_parcel -> "
+            "analyze__existing_building_statistics(lng, lat, radius_m=300, "
+            "use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n=400, examples_n=5)"
+        )
+    else:
+        chain = (
+            "최근 선택된 필지/카드/locate__get_parcel 결과의 geometry 중심점 -> "
+            "analyze__existing_building_statistics(lng, lat, radius_m=300, "
+            "use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n=400, examples_n=5)"
+        )
+    answer_guard = _current_parcel_answer_guard(
+        current_context,
+        "answer_guard=후보 리스트가 아니라 통계가 본문. examples는 참고용 부록.",
     )
     lines = [
         *_routing_header(),
         "bucket=기존 건축물 통계 조회",
         "anchor_type=current_parcel",
-        "anchor_text=최근 선택된 필지 또는 직전 필지 도구 결과",
+        f"anchor_text={_current_parcel_anchor_text(current_context)}",
+        *_current_parcel_context_lines(current_context),
         f"required_chain={chain}",
-        "fallback=최근 선택된 필지가 없으면 사용자에게 기준 필지를 물어볼 것",
+        _current_parcel_fallback(current_context),
         "radius_m=300",
         "visual_suppress=intermediate_parcel_candidates",
         "answer_mode=use_counts 표 + matched_buildings 합계 + coverage/probe_n + area_stats(평균·중앙값) + examples 3-5건 (후보 리스트로 답하지 말 것)",
-        "answer_guard=후보 리스트가 아니라 통계가 본문. examples는 참고용 부록.",
+        answer_guard,
     ]
     lines.extend(_area_lines(text))
     return "\n".join(lines)
@@ -563,13 +705,35 @@ def _previous_existing_visualization_hint(messages: list[dict[str, Any]], uses: 
     ])
 
 
-def _current_parcel_hint() -> str:
-    return "\n".join([
+def _current_parcel_hint(current_context: dict[str, Any] | None = None) -> str:
+    if current_context and current_context.get("centroid"):
+        chain = "current_parcel_centroid -> analyze__find_parcels(lng, lat, radius_m=300)"
+        routing = "현재 필지 컨텍스트의 centroid를 기준으로 주변 분석"
+    elif current_context and current_context.get("pnu"):
+        chain = "current_parcel_pnu -> locate__get_parcel -> analyze__find_parcels(lng, lat, radius_m=300)"
+        routing = "현재 필지 컨텍스트의 PNU로 geometry를 확인한 뒤 주변 분석"
+    else:
+        chain = ""
+        routing = "최근 선택된 필지/카드/locate__get_parcel 결과가 있으면 그 geometry를 기준으로 주변 분석"
+    lines = [
         *_routing_header(),
         "anchor_type=current_parcel",
-        "anchor_text=최근 선택된 필지 또는 직전 필지 도구 결과",
-        "routing=최근 선택된 필지/카드/locate__get_parcel 결과가 있으면 그 geometry를 기준으로 주변 분석",
-        "fallback=최근 선택된 필지가 없으면 사용자에게 기준 필지를 물어볼 것",
+        f"anchor_text={_current_parcel_anchor_text(current_context)}",
+        *_current_parcel_context_lines(current_context),
+    ]
+    if chain:
+        lines.append(f"required_chain={chain}")
+    lines.extend([
+        f"routing={routing}",
+        _current_parcel_fallback(current_context),
+    ])
+    if current_context and current_context.get("pnu"):
+        lines.append(
+            "answer_guard=내부 current_parcel_pnu/PNU는 도구 호출 인자로만 사용하고, "
+            "사용자가 PNU를 명시적으로 요청하지 않으면 답변 본문에 쓰지 말 것."
+        )
+    return "\n".join([
+        *lines,
     ])
 
 

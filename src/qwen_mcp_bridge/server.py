@@ -36,6 +36,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="qwen_mcp_bridge", version="0.1.0", lifespan=lifespan)
 
 
+def _extract_current_parcel_context(body: dict[str, Any]) -> dict[str, Any] | None:
+    metadata = body.get("metadata")
+    current_parcel = metadata.get("current_parcel") if isinstance(metadata, dict) else None
+    if current_parcel is None:
+        current_parcel = body.get("current_parcel")
+    return current_parcel if isinstance(current_parcel, dict) else None
+
+
 @app.get("/healthz")
 async def healthz(request: Request) -> dict:
     pool: McpPool = request.app.state.pool
@@ -64,11 +72,12 @@ async def chat_completions(request: Request) -> Any:
     user_messages = body.get("messages") or []
     if not isinstance(user_messages, list) or not user_messages:
         raise HTTPException(status_code=400, detail="messages가 비어있습니다")
+    current_parcel_context = _extract_current_parcel_context(body)
 
     # system prompt를 우리 브릿지가 추가. 클라이언트가 보낸 system 메시지가 있으면
     # 두 개를 하나로 병합 — Qwen3.6 chat template는 system이 정확히 1개 (그것도 맨 앞)여야 함.
     bridge_system_content = build_system_prompt()
-    routing_hint = build_routing_hint(user_messages)
+    routing_hint = build_routing_hint(user_messages, current_parcel=current_parcel_context)
     if routing_hint:
         bridge_system_content = bridge_system_content + "\n\n" + routing_hint
     if user_messages and user_messages[0].get("role") == "system":
@@ -82,7 +91,7 @@ async def chat_completions(request: Request) -> Any:
     # 클라이언트의 vLLM 전용 옵션 (chat_template_kwargs, temperature, max_tokens 등) forward
     extra_body = {
         k: v for k, v in body.items()
-        if k not in {"messages", "model", "stream", "tools", "tool_choice"}
+        if k not in {"messages", "model", "stream", "tools", "tool_choice", "metadata", "current_parcel"}
     }
 
     # stream=true면 SSE 스트리밍 응답
@@ -97,6 +106,7 @@ async def chat_completions(request: Request) -> Any:
             request_timeout=settings.vllm_timeout,
             extra_body=extra_body,
             max_tool_result_bytes=settings.mcp_tool_result_max_bytes,
+            current_parcel_context=current_parcel_context,
         )
         return StreamingResponse(
             gen,

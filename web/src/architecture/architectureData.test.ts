@@ -121,19 +121,26 @@ describe("architecture data", () => {
     expect(nodeById("routingHintBuilder").details.join(" ")).toContain("build_routing_hint");
   });
 
-  it("models chat routing debug metadata as a visible observability path", () => {
-    expect(CHAT_OBSERVABILITY_NODE_IDS).toEqual(["routingDebugPanel"]);
+  it("models chat routing debug metadata and current parcel context as visible observability paths", () => {
+    expect(CHAT_OBSERVABILITY_NODE_IDS).toEqual(["routingDebugPanel", "currentParcelContext"]);
 
     const panel = nodeById("routingDebugPanel");
     expect(panel.kind).toBe("interface");
     expect(panel.cluster).toBe("interface");
     expect(panel.details.join(" ")).toContain("routing_debug");
+    const context = nodeById("currentParcelContext");
+    expect(context.kind).toBe("interface");
+    expect(context.cluster).toBe("interface");
+    expect(context.details.join(" ")).toContain("metadata.current_parcel");
 
     const linkSet = new Set(ARCH_LINKS.map((link) => `${link.from}->${link.to}`));
     for (const requiredLink of [
       "routingHintBuilder->routingDebugPanel",
       "loop->routingDebugPanel",
       "routingDebugPanel->web",
+      "popupCardBuilder->currentParcelContext",
+      "currentParcelContext->bridge",
+      "currentParcelContext->routingDebugPanel",
     ]) {
       expect(linkSet.has(requiredLink)).toBe(true);
     }

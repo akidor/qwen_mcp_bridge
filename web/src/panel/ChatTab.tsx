@@ -6,6 +6,7 @@ import ChartModal from "../charts/ChartModal";
 import MassModal from "../three/MassModal";
 import type { SceneData } from "../three/scene-types";
 import { setCurrentIntent, type IntentLabel } from "../intent/intentStore";
+import { getCurrentParcelContext } from "../currentParcelContext";
 import RoutingDebugPanel from "./RoutingDebugPanel";
 import { routingDebugFromEvent, type RoutingDebugMeta } from "./routingDebug";
 
@@ -161,6 +162,10 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
       stream: true,
       temperature: 0.7,
     };
+    const currentParcel = getCurrentParcelContext();
+    if (currentParcel) {
+      payload.metadata = { current_parcel: currentParcel };
+    }
     if (disableThinking) payload.chat_template_kwargs = { enable_thinking: false };
 
     abortRef.current = new AbortController();

@@ -17,6 +17,7 @@ from qwen_mcp_bridge.query_policy import (
     _LIST_RE,
     _MULTIFAMILY_RE,
     _NEARBY_RE,
+    _RECENT_CONTEXT_RE,
     _RISK_RE as _QP_RISK_RE,
     _STATS_RE,
     _extract_address_anchor,
@@ -77,7 +78,11 @@ def extract_existing_use_hint(text: str) -> str | None:
     return None
 
 
-def classify_intent(messages: list[dict[str, Any]]) -> IntentLabel:
+def classify_intent(
+    messages: list[dict[str, Any]],
+    *,
+    has_current_parcel_context: bool = False,
+) -> IntentLabel:
     """최근 user 발화 1건을 의도 라벨 1개로 매핑.
 
     우선순위:
@@ -94,7 +99,10 @@ def classify_intent(messages: list[dict[str, Any]]) -> IntentLabel:
     if _RISK_RE.search(text):
         return "risk_check"
 
-    is_current_parcel = bool(_CURRENT_PARCEL_RE.search(text))
+    is_current_parcel = bool(
+        _CURRENT_PARCEL_RE.search(text)
+        or (has_current_parcel_context and _RECENT_CONTEXT_RE.search(text))
+    )
     if is_current_parcel and _DETAIL_RE.search(text) and not _NEARBY_RE.search(text):
         # "주변"이 있으면 nearby_context로 — parcel_detail은 단일 필지 자체 분석에 한정.
         return "parcel_detail"

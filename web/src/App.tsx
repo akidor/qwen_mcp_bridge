@@ -31,6 +31,7 @@ import {
 } from "./map/auto_layer";
 import type { ParcelCard } from "./panel/ChatTab";
 import { getCurrentIntent, shouldRenderToolResult } from "./intent/intentStore";
+import { setCurrentParcelContextFromParcel } from "./currentParcelContext";
 
 interface ToolHistoryEntry {
   name: string;
@@ -245,6 +246,7 @@ export default function App() {
   }
 
   function handleParcelFocus(card: ParcelCard) {
+    setCurrentParcelContextFromParcel(card);
     if (!mapInstance) return;
     focusParcel(mapInstance, {
       geometry: card.geometry,

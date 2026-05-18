@@ -24,20 +24,19 @@ describe("architecture graph connectivity analysis", () => {
     expect(report.summary.weakNodeIds).toContain("otherDomains");
   });
 
-  it("flags clusters that have too few external boundary links", () => {
+  it("keeps clusters ok once they have enough external boundary links", () => {
     const report = analyzeArchitectureGraph(ARCH_NODES, ARCH_LINKS, ARCH_CLUSTERS);
     const rendering = report.clusterStatusById.rendering;
     const mcpPool = report.clusterStatusById["mcp-pool"];
 
     expect(rendering).toBeDefined();
-    expect(rendering?.severity).toBe("weak");
-    expect(rendering?.boundary).toBe(1);
-    expect(rendering?.reasons.join(" ")).toContain("boundary");
+    expect(rendering?.severity).toBe("ok");
+    expect(rendering?.boundary).toBeGreaterThanOrEqual(2);
 
     expect(mcpPool).toBeDefined();
     expect(mcpPool?.severity).toBe("ok");
     expect(mcpPool?.boundary).toBeGreaterThanOrEqual(2);
-    expect(report.summary.weakClusterIds).toEqual(["rendering"]);
+    expect(report.summary.weakClusterIds).toEqual([]);
   });
 
   it("recommends concrete links that would improve weak nodes and cluster boundaries", () => {
@@ -52,18 +51,12 @@ describe("architecture graph connectivity analysis", () => {
           confidence: "medium",
           curve: expect.any(Number),
         }),
-        expect.objectContaining({
-          from: "map",
-          to: "web",
-          source: "weak-cluster",
-          confidence: "high",
-          curve: expect.any(Number),
-        }),
       ]),
     );
-    expect(report.suggestedLinks.map((link) => link.id)).toEqual(["design->polygon", "otherDomains->polygon", "map->web"]);
+    expect(report.suggestedLinks.map((link) => link.id)).toEqual(["design->polygon", "otherDomains->polygon"]);
     expect(report.summary.suggestedLinkCount).toBe(report.suggestedLinks.length);
     expect(report.suggestedLinks.some((link) => link.from === "analyze" && link.to === "polygon")).toBe(false);
+    expect(report.suggestedLinks.some((link) => link.from === "map" && link.to === "web")).toBe(false);
   });
 
   it("summarizes suggested link review states and keeps ignored links out of preview", () => {
@@ -79,12 +72,12 @@ describe("architecture graph connectivity analysis", () => {
 
     const reviewed = summarizeSuggestedLinkReviews(report.suggestedLinks, {
       "design->polygon": "planned",
-      "map->web": "ignored",
+      "otherDomains->polygon": "ignored",
     });
 
-    expect(reviewed.pending).toBe(1);
+    expect(reviewed.pending).toBe(0);
     expect(reviewed.planned).toBe(1);
     expect(reviewed.ignored).toBe(1);
-    expect(reviewed.visibleSuggestionIds).toEqual(["design->polygon", "otherDomains->polygon"]);
+    expect(reviewed.visibleSuggestionIds).toEqual(["design->polygon"]);
   });
 });

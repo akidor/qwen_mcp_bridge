@@ -70,6 +70,44 @@ def test_routing_hint_for_current_parcel_reference_asks_for_recent_context():
     assert "없으면 사용자에게 기준 필지를 물어볼 것" in hint
 
 
+def test_routing_hint_current_parcel_context_detail_uses_internal_pnu():
+    hint = build_routing_hint(
+        [{"role": "user", "content": "여기 다세대 가능?"}],
+        current_parcel={
+            "address": "서울특별시 강남구 역삼동 738-1",
+            "pnu": "1168010100107380001",
+            "centroid": {"lng": 127.0331234, "lat": 37.4989876},
+        },
+    )
+
+    assert hint is not None
+    assert "bucket=현재 선택 필지 상세 검토" in hint
+    assert "anchor_type=current_parcel" in hint
+    assert "anchor_text=서울특별시 강남구 역삼동 738-1" in hint
+    assert "current_parcel_pnu=1168010100107380001" in hint
+    assert "current_parcel_centroid=127.033123,37.498988" in hint
+    assert 'analyze__evaluate_buildability(current_parcel_pnu, existing_use_hint="다세대")' in hint
+    assert "내부 current_parcel_pnu/PNU는 도구 호출 인자로만 사용" in hint
+
+
+def test_routing_hint_current_parcel_context_resolves_banggeum_followup_to_centroid():
+    hint = build_routing_hint(
+        [{"role": "user", "content": "방금 그거 주변 인접 필지 찾아줘"}],
+        current_parcel={
+            "address": "서울특별시 강남구 역삼동 738-1",
+            "pnu": "1168010100107380001",
+            "centroid": {"lng": 127.0331234, "lat": 37.4989876},
+        },
+    )
+
+    assert hint is not None
+    assert "anchor_type=current_parcel" in hint
+    assert "anchor_text=서울특별시 강남구 역삼동 738-1" in hint
+    assert "current_parcel_centroid=127.033123,37.498988" in hint
+    assert "required_chain=current_parcel_centroid -> analyze__find_parcels" in hint
+    assert "fallback=현재 필지 컨텍스트가 없으면 사용자에게 기준 필지를 물어볼 것" in hint
+
+
 def test_routing_hint_returns_none_for_plain_smalltalk():
     assert build_routing_hint([
         {"role": "user", "content": "안녕"},

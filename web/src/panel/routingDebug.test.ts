@@ -58,4 +58,81 @@ describe("routing debug panel helpers", () => {
       ]),
     );
   });
+
+  it("adds no chain warning when completed tools contain the required chain in order", () => {
+    const rows = buildRoutingDebugRows(
+      {
+        intent: "existing_building_stats",
+        requiredChain: "locate__search_address -> analyze__existing_building_statistics",
+        routingHint: "",
+      },
+      [
+        { kind: "end", name: "locate__search_address", error: false },
+        { kind: "end", name: "analyze__existing_building_statistics", error: false },
+      ],
+    );
+
+    expect(rows.find((row) => row.label === "chain warning")).toBeUndefined();
+  });
+
+  it("compares only executable tool names when required chain includes context anchors and args", () => {
+    const rows = buildRoutingDebugRows(
+      {
+        intent: "existing_building_stats",
+        requiredChain:
+          "current_parcel_centroid -> analyze__find_parcels(lng, lat, radius_m=300) -> analyze__existing_building_statistics(lng, lat, radius_m=300, use_keywords=[\"다세대\"])",
+        routingHint: "",
+      },
+      [
+        { kind: "end", name: "analyze__find_parcels", error: false },
+        { kind: "end", name: "analyze__existing_building_statistics", error: false },
+      ],
+    );
+
+    expect(rows.find((row) => row.label === "chain warning")).toBeUndefined();
+  });
+
+  it("warns when a completed tool is missing from the required chain", () => {
+    const rows = buildRoutingDebugRows(
+      {
+        intent: "existing_building_stats",
+        requiredChain: "locate__search_address -> analyze__existing_building_statistics",
+        routingHint: "",
+      },
+      [{ kind: "end", name: "locate__search_address", error: false }],
+    );
+
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        {
+          label: "chain warning",
+          value: "missing required tool: analyze__existing_building_statistics",
+        },
+      ]),
+    );
+  });
+
+  it("warns when completed tools contain the required chain out of order", () => {
+    const rows = buildRoutingDebugRows(
+      {
+        intent: "existing_building_stats",
+        requiredChain: "locate__search_address -> analyze__existing_building_statistics",
+        routingHint: "",
+      },
+      [
+        { kind: "end", name: "analyze__existing_building_statistics", error: false },
+        { kind: "end", name: "locate__search_address", error: false },
+      ],
+    );
+
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        {
+          label: "chain warning",
+          value:
+            "order mismatch: expected locate__search_address -> analyze__existing_building_statistics; actual analyze__existing_building_statistics -> locate__search_address",
+        },
+      ]),
+    );
+  });
 });
