@@ -6,6 +6,8 @@ import ChartModal from "../charts/ChartModal";
 import MassModal from "../three/MassModal";
 import type { SceneData } from "../three/scene-types";
 import { setCurrentIntent, type IntentLabel } from "../intent/intentStore";
+import RoutingDebugPanel from "./RoutingDebugPanel";
+import { routingDebugFromEvent, type RoutingDebugMeta } from "./routingDebug";
 
 type ChatRole = "user" | "assistant" | "system";
 
@@ -39,6 +41,8 @@ type ChatMessage = {
   reasoning?: string;
   toolEvents?: ToolEvent[];
   toolsExpanded?: boolean;
+  routingDebug?: RoutingDebugMeta;
+  routingDebugExpanded?: boolean;
 };
 
 interface ChatTabProps {
@@ -201,6 +205,13 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
           if (data.type === "intent") {
             // 시각화 분기에 쓸 라벨 — 새 turn 시작마다 갱신.
             setCurrentIntent(data.label as IntentLabel);
+            continue;
+          }
+          if (data.type === "routing_debug") {
+            const routingDebug = routingDebugFromEvent(data);
+            setMessages((cur) =>
+              cur.map((m, mi) => (mi === assistantIdx ? { ...m, routingDebug, routingDebugExpanded: false } : m))
+            );
             continue;
           }
           if (data.type === "ui_action") {
@@ -497,6 +508,18 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
                   <summary>thinking ({message.reasoning.length} chars)</summary>
                   <pre>{redactPnu(message.reasoning, prevUserAsksPnu(messages, index))}</pre>
                 </details>
+              ) : null}
+              {message.role === "assistant" && message.routingDebug ? (
+                <RoutingDebugPanel
+                  debug={message.routingDebug}
+                  toolEvents={message.toolEvents}
+                  expanded={!!message.routingDebugExpanded}
+                  onToggle={() => {
+                    setMessages((cur) =>
+                      cur.map((m, mi) => (mi === index ? { ...m, routingDebugExpanded: !m.routingDebugExpanded } : m))
+                    );
+                  }}
+                />
               ) : null}
               {message.role === "assistant" && message.toolEvents && message.toolEvents.length > 0 ? (() => {
                 const counts = countToolGroups(message.toolEvents);

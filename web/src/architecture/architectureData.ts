@@ -166,6 +166,10 @@ export const QUERY_ROUTING_NODE_IDS = [
   "routingScenarioTests",
 ] as const;
 
+export const CHAT_OBSERVABILITY_NODE_IDS = [
+  "routingDebugPanel",
+] as const;
+
 export const FLOW_NODE_IDS = [
   "user",
   "web",
@@ -207,6 +211,19 @@ export const ARCH_NODES: ArchNode[] = [
     cluster: "interface",
     position: [-5.3, -0.2, 0.6],
     details: ["SSE 스트림을 받아 답변과 도구 상태를 표시", "도구 결과와 intent event를 Map Renderer 파이프라인으로 넘김"],
+  },
+  {
+    id: "routingDebugPanel",
+    label: "Routing Debug Panel",
+    caption: "routing_debug SSE",
+    kind: "interface",
+    cluster: "interface",
+    connectivityRole: "diagnostic",
+    position: [-6.65, -0.85, -0.6],
+    details: [
+      "routing_debug SSE event를 접이식 패널로 보여 intent, bucket, anchor, required_chain을 노출",
+      "실제 tool_call_end 순서와 expected chain을 같은 assistant 메시지에서 비교",
+    ],
   },
   {
     id: "bridge",
@@ -549,6 +566,7 @@ export const ARCH_LINKS: ArchLink[] = [
   { from: "routingScenarioTests", to: "routingHintBuilder", label: "regression guard", curve: -0.18 },
   { from: "routingHintBuilder", to: "policy", label: "system hint", curve: 0.12 },
   { from: "intentClassifier", to: "web", label: "intent event", curve: -0.7 },
+  { from: "routingHintBuilder", to: "routingDebugPanel", label: "routing_debug fields", curve: -0.55 },
   { from: "policy", to: "qwen", label: "tool chain guard", curve: -0.25 },
   { from: "bridge", to: "qwen", label: "messages + tools", curve: 0.15 },
   { from: "qwen", to: "loop", label: "tool_calls", curve: -0.25 },
@@ -570,6 +588,8 @@ export const ARCH_LINKS: ArchLink[] = [
   { from: "analyze", to: "polygon", label: "building stats", curve: -0.2 },
   { from: "inspect", to: "polygon", label: "regulation data", curve: 0.1 },
   { from: "loop", to: "web", label: "tool result event", curve: -0.75 },
+  { from: "loop", to: "routingDebugPanel", label: "actual tool order", curve: -0.5 },
+  { from: "routingDebugPanel", to: "web", label: "debug overlay", curve: 0.18 },
   { from: "web", to: "toolResultParser", label: "raw tool result", curve: 0.28 },
   { from: "toolResultParser", to: "intentVisualFilter", label: "parsed features", curve: -0.18 },
   { from: "intentVisualFilter", to: "mapFailureGuards", label: "render decision", curve: 0.22 },

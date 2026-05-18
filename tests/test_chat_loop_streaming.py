@@ -38,6 +38,20 @@ def tool_call_end_events(chunks: list[bytes]) -> list[dict]:
     return events
 
 
+def custom_events(chunks: list[bytes], event_type: str) -> list[dict]:
+    events = []
+    for block in b"".join(chunks).decode("utf-8").split("\n\n"):
+        if not block.startswith("data: "):
+            continue
+        payload = block.removeprefix("data: ").strip()
+        if payload == "[DONE]":
+            continue
+        parsed = json.loads(payload)
+        if parsed.get("type") == event_type:
+            events.append(parsed)
+    return events
+
+
 @pytest.mark.asyncio
 @respx.mock
 async def test_max_iter_emits_friendly_content_chunk():
@@ -96,6 +110,39 @@ async def test_max_iter_emits_friendly_content_chunk():
     assert "max_iterations=2" in body
     # [DONE]으로 마감
     assert "data: [DONE]" in body
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_stream_emits_routing_debug_before_model_chunks():
+    pool = make_pool_mock_with_tool("analyze__existing_building_statistics", "{}")
+    respx.post("http://fake-vllm/v1/chat/completions").mock(
+        return_value=httpx.Response(200, text=(
+            'data: {"id":"y","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{"role":"assistant","content":"통계입니다."},"finish_reason":null}]}\n\n'
+            'data: {"id":"y","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n'
+            'data: [DONE]\n\n'
+        ))
+    )
+
+    chunks: list[bytes] = []
+    async for chunk in run_chat_streaming(
+        messages=[{"role": "user", "content": "문정동 118-15 근처에 다세대주택 얼마나 있어?"}],
+        pool=pool,
+        vllm_base_url="http://fake-vllm/v1",
+        vllm_api_key="x",
+        model="fake-model",
+        max_iterations=5,
+    ):
+        chunks.append(chunk)
+
+    routing_events = custom_events(chunks, "routing_debug")
+
+    assert len(routing_events) == 1
+    assert routing_events[0]["intent"] == "existing_building_stats"
+    assert routing_events[0]["bucket"] == "기존 건축물 통계 조회"
+    assert routing_events[0]["anchor_type"] == "address"
+    assert routing_events[0]["anchor_text"] == "문정동 118-15"
+    assert "analyze__existing_building_statistics" in routing_events[0]["required_chain"]
 
 
 @pytest.mark.asyncio

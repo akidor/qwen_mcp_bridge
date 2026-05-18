@@ -188,6 +188,96 @@ input, textarea, button, select {
 .tool-pill.running { animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.55; } }
 
+.routing-debug-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 2px 0 4px;
+}
+.routing-debug-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--code-bg) 88%, transparent);
+  color: var(--fg-muted);
+  cursor: pointer;
+  padding: 3px 9px;
+  font-size: 11px;
+}
+.routing-debug-summary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.routing-debug-badge,
+.routing-debug-title,
+.routing-debug-toggle {
+  flex: 0 0 auto;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+.routing-debug-badge {
+  color: var(--accent);
+  font-weight: 700;
+}
+.routing-debug-title {
+  color: var(--fg);
+}
+.routing-debug-bucket {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.routing-debug-toggle {
+  color: var(--muted);
+}
+.routing-debug-detail {
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--code-bg) 72%, transparent);
+  padding: 8px 10px;
+  font-size: 11px;
+}
+.routing-debug-detail dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.routing-debug-detail dl > div {
+  display: grid;
+  grid-template-columns: 94px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+.routing-debug-detail dt {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+.routing-debug-detail dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+.routing-debug-raw {
+  margin-top: 8px;
+  color: var(--fg-muted);
+}
+.routing-debug-raw summary {
+  cursor: pointer;
+}
+.routing-debug-raw pre {
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  margin: 6px 0 0;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
 .reasoning-block {
   font-size: 11px;
   color: var(--muted);

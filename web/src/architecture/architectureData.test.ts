@@ -4,6 +4,7 @@ import {
   ARCH_CLUSTERS,
   ARCH_LINKS,
   ARCH_NODES,
+  CHAT_OBSERVABILITY_NODE_IDS,
   MAP_RENDERER_NODE_IDS,
   MCP_POOL_NODE_IDS,
   QUERY_ROUTING_NODE_IDS,
@@ -118,6 +119,24 @@ describe("architecture data", () => {
     expect(nodeById("anchorExtractor").details.join(" ")).toContain("_JIBUN_RE");
     expect(nodeById("followupContext").details.join(" ")).toContain("시각화만");
     expect(nodeById("routingHintBuilder").details.join(" ")).toContain("build_routing_hint");
+  });
+
+  it("models chat routing debug metadata as a visible observability path", () => {
+    expect(CHAT_OBSERVABILITY_NODE_IDS).toEqual(["routingDebugPanel"]);
+
+    const panel = nodeById("routingDebugPanel");
+    expect(panel.kind).toBe("interface");
+    expect(panel.cluster).toBe("interface");
+    expect(panel.details.join(" ")).toContain("routing_debug");
+
+    const linkSet = new Set(ARCH_LINKS.map((link) => `${link.from}->${link.to}`));
+    for (const requiredLink of [
+      "routingHintBuilder->routingDebugPanel",
+      "loop->routingDebugPanel",
+      "routingDebugPanel->web",
+    ]) {
+      expect(linkSet.has(requiredLink)).toBe(true);
+    }
   });
 
   it("groups every node into a togglable architecture layer", () => {
