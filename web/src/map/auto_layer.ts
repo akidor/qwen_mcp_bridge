@@ -885,11 +885,13 @@ export function applyToolResult(map: any, toolName: string, resultText: string):
     }
   }
   // locate__parcels_in_boundary / analyze__find_parcels / analyze__find_existing_buildings
+  // / analyze__existing_building_statistics
   // — FeatureCollection 또는 {features: [...]}
   if (
     toolName === "locate__parcels_in_boundary" ||
     toolName === "analyze__find_parcels" ||
-    toolName === "analyze__find_existing_buildings"
+    toolName === "analyze__find_existing_buildings" ||
+    toolName === "analyze__existing_building_statistics"
   ) {
     const fc =
       parsed?.type === "FeatureCollection"
@@ -899,7 +901,9 @@ export function applyToolResult(map: any, toolName: string, resultText: string):
         : null;
     if (fc && fc.features && fc.features.length > 0) {
       const idPrefix =
-        toolName === "analyze__find_existing_buildings"
+        toolName === "analyze__existing_building_statistics"
+          ? "existing-stats"
+          : toolName === "analyze__find_existing_buildings"
           ? "find-existing"
           : toolName === "analyze__find_parcels"
           ? "find-parcels"

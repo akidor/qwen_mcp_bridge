@@ -47,6 +47,7 @@ describe("architecture data", () => {
     }
 
     expect(nodeById("map").details.join(" ")).toContain("applyToolResult");
+    expect(nodeById("autoLayerManager").details.join(" ")).toContain("existing_building_statistics");
     expect(ARCH_NODES.filter((node) => node.kind === "render").length).toBeGreaterThanOrEqual(8);
   });
 

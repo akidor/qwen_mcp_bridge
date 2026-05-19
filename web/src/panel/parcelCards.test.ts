@@ -67,6 +67,34 @@ describe("parseParcelCards", () => {
     expect(c.building).toEqual({ use: "다세대주택" });
   });
 
+  test("existing_building_statistics FeatureCollection — 통계 matched parcel 카드를 만든다", () => {
+    const result = JSON.stringify({
+      matched_buildings: 1,
+      features: [
+        {
+          type: "Feature",
+          geometry: _polygon,
+          properties: {
+            pnu: "P4",
+            address: "문정동 118-17",
+            jimok: "대",
+            area_m2: 120,
+            matched_use: "다세대주택",
+            state: "confirmed_existing_building",
+            state_reason: ["통계 매칭 용도: 다세대주택"],
+            building: { main_purpose: "다세대주택" },
+          },
+        },
+      ],
+    });
+    const cards = parseParcelCards("analyze__existing_building_statistics", result);
+    expect(cards).toHaveLength(1);
+    expect(cards![0].pnu).toBe("P4");
+    expect(cards![0].state).toBe("confirmed_existing_building");
+    expect(cards![0].stateAuthoritative).toBe(true);
+    expect(cards![0].matchedUse).toBe("다세대주택");
+  });
+
   test("find_parcels: backend state 없으면 inferState 사용, authoritative=false", () => {
     const result = JSON.stringify({
       features: [

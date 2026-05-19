@@ -973,7 +973,8 @@ export function parseParcelCards(toolName: string, resultText: string): ParcelCa
     if (
       toolName !== "locate__parcels_in_boundary" &&
       toolName !== "analyze__find_parcels" &&
-      toolName !== "analyze__find_existing_buildings"
+      toolName !== "analyze__find_existing_buildings" &&
+      toolName !== "analyze__existing_building_statistics"
     ) {
       return undefined;
     }

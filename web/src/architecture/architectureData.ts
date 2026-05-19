@@ -534,7 +534,11 @@ export const ARCH_NODES: ArchNode[] = [
     kind: "render",
     cluster: "rendering",
     position: [-3.25, -2.05, 0.25],
-    details: ["FeatureCollection을 MapLibre source/layer로 추가하고 toolHistory에 기록", "레이어 visibility, opacity, clearAllToolLayers와 연결"],
+    details: [
+      "FeatureCollection을 MapLibre source/layer로 추가하고 toolHistory에 기록",
+      "existing_building_statistics matched features도 통계 레이어로 렌더",
+      "레이어 visibility, opacity, clearAllToolLayers와 연결",
+    ],
   },
   {
     id: "popupCardBuilder",
