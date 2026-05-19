@@ -4,6 +4,7 @@ from qwen_mcp_bridge.visual_filter import (
     filter_buildable_candidate_result,
     should_filter_buildable_visual_result,
     should_suppress_intermediate_parcel_visual_result,
+    split_existing_building_statistics_result,
     suppress_intermediate_parcel_visual_result,
 )
 
@@ -125,3 +126,39 @@ def test_suppress_intermediate_parcel_visual_result_preserves_tool_metadata_with
     assert suppressed["total"] == 0
     assert suppressed["total_before_visual_suppress"] == 1
     assert suppressed["visual_suppressed"]["reason"] == "existing_building_search_intermediate_parcels"
+
+
+def test_split_existing_building_statistics_result_separates_model_and_visual_payloads():
+    raw = json.dumps({
+        "type": "FeatureCollection",
+        "matched_buildings": 2,
+        "coverage": "full",
+        "parcels_probed": 80,
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": [[[127, 37], [127.001, 37], [127.001, 37.001], [127, 37.001], [127, 37]]]},
+                "properties": {"pnu": "p1", "address": "문정동 118-15", "matched_use": "다세대주택"},
+            },
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": [[[127.002, 37], [127.003, 37], [127.003, 37.001], [127.002, 37.001], [127.002, 37]]]},
+                "properties": {"pnu": "p2", "address": "문정동 118-17", "matched_use": "다세대주택"},
+            },
+        ],
+        "detail_probe_log": "x" * 300_000,
+    }, ensure_ascii=False)
+
+    model_text, visual_text = split_existing_building_statistics_result(raw)
+
+    model = json.loads(model_text)
+    visual = json.loads(visual_text)
+    assert "features" not in model
+    assert model["matched_buildings"] == 2
+    assert model["features_omitted_for_model"] == 2
+    assert model["visual_payload_split"]["reason"] == "keep_model_context_stats_only"
+    assert visual["type"] == "FeatureCollection"
+    assert [feature["properties"]["pnu"] for feature in visual["features"]] == ["p1", "p2"]
+    assert visual["matched_buildings"] == 2
+    assert visual["coverage"] == "full"
+    assert "detail_probe_log" not in visual

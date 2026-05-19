@@ -123,6 +123,8 @@ describe("architecture data", () => {
     expect(nodeById("analyze").details.join(" ")).toContain("distance_from_center");
     expect(nodeById("analyze").details.join(" ")).toContain("detail_concurrency");
     expect(nodeById("polygon").details.join(" ")).toContain("/api/parcels/details");
+    expect(nodeById("loop").details.join(" ")).toContain("stats-only");
+    expect(nodeById("toolResultParser").details.join(" ")).toContain("GeoJSON-only");
   });
 
   it("models chat routing debug metadata and current parcel context as visible observability paths", () => {

@@ -27,9 +27,11 @@ import httpx
 
 from qwen_mcp_bridge._tool_result import truncate_tool_text
 from qwen_mcp_bridge.visual_filter import (
+    EXISTING_BUILDING_STATISTICS_TOOL,
     filter_buildable_candidate_result,
     should_filter_buildable_visual_result,
     should_suppress_intermediate_parcel_visual_result,
+    split_existing_building_statistics_result,
     suppress_intermediate_parcel_visual_result,
 )
 
@@ -309,17 +311,20 @@ async def run_chat_streaming(
 
                 # raw tool_text는 SSE(frontend)용, 모델로 가는 텍스트는 별도로 truncate.
                 raw_tool_text = tool_text
+                tool_text_for_sse = raw_tool_text
+                if name == EXISTING_BUILDING_STATISTICS_TOOL:
+                    tool_text, tool_text_for_sse = split_existing_building_statistics_result(raw_tool_text)
                 tool_text = truncate_tool_text(tool_text, max_tool_result_bytes)
                 duration_ms = int((time.monotonic() - t0) * 1000)
 
                 # T5: result_text는 frontend auto_layer가 GeoJSON 추출에 쓰므로 raw 전달.
                 # 256KB cap만 적용 (필지 집계·POI FeatureCollection·scene_data도 통과). 모델로 가는 텍스트와 별개.
                 _RESULT_TEXT_SSE_CAP = 262144  # 256KB — design.generate_scene scene_data inline용
-                tool_text_for_sse = raw_tool_text
-                if should_suppress_intermediate_parcel_visual_result(name, work):
-                    tool_text_for_sse = suppress_intermediate_parcel_visual_result(tool_text_for_sse)
-                elif should_filter_buildable_visual_result(name, work):
-                    tool_text_for_sse = filter_buildable_candidate_result(tool_text_for_sse)
+                if name != EXISTING_BUILDING_STATISTICS_TOOL:
+                    if should_suppress_intermediate_parcel_visual_result(name, work):
+                        tool_text_for_sse = suppress_intermediate_parcel_visual_result(tool_text_for_sse)
+                    elif should_filter_buildable_visual_result(name, work):
+                        tool_text_for_sse = filter_buildable_candidate_result(tool_text_for_sse)
                 if len(tool_text_for_sse.encode("utf-8")) > _RESULT_TEXT_SSE_CAP:
                     enc = tool_text_for_sse.encode("utf-8")[:_RESULT_TEXT_SSE_CAP]
                     while enc:

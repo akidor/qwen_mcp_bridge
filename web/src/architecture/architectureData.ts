@@ -351,7 +351,11 @@ export const ARCH_NODES: ArchNode[] = [
     kind: "tooling",
     cluster: "tool-loop",
     position: [0.8, -1.85, 0.35],
-    details: ["tool_calls를 누적하고 MCP dispatch 후 다음 iteration으로 연결", "intent event와 tool_call event를 UI에 스트리밍"],
+    details: [
+      "tool_calls를 누적하고 MCP dispatch 후 다음 iteration으로 연결",
+      "intent event와 tool_call event를 UI에 스트리밍",
+      "existing_building_statistics는 모델용 stats-only JSON과 frontend용 GeoJSON-only result_text로 분리",
+    ],
   },
   {
     id: "pool",
@@ -507,7 +511,11 @@ export const ARCH_NODES: ArchNode[] = [
     kind: "render",
     cluster: "rendering",
     position: [-6.15, -1.35, 1.15],
-    details: ["MCP 결과 텍스트에서 JSON/FeatureCollection/bbox/properties를 추출", "geometry가 없으면 지도 레이어가 아니라 히스토리 메시지로만 남김"],
+    details: [
+      "MCP 결과 텍스트에서 JSON/FeatureCollection/bbox/properties를 추출",
+      "geometry가 없으면 지도 레이어가 아니라 히스토리 메시지로만 남김",
+      "통계 도구의 GeoJSON-only result_text를 받아 큰 probe 통계와 분리된 지도 레이어를 생성",
+    ],
   },
   {
     id: "intentVisualFilter",

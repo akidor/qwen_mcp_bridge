@@ -10,6 +10,22 @@ from typing import Any
 
 BUILDABLE_VISUAL_TOOLS = {"analyze__find_parcels", "locate__parcels_in_boundary"}
 INTERMEDIATE_PARCEL_VISUAL_TOOLS = {"analyze__find_parcels", "locate__parcels_in_boundary"}
+EXISTING_BUILDING_STATISTICS_TOOL = "analyze__existing_building_statistics"
+EXISTING_STATS_VISUAL_META_KEYS = (
+    "matched_buildings",
+    "matched_count",
+    "total",
+    "coverage",
+    "parcels_probed",
+    "eligible_parcels",
+    "radius_m",
+    "center",
+    "use_keywords",
+    "expanded_use_keywords",
+    "filter_applied",
+    "detail_fetch_mode",
+    "detail_concurrency",
+)
 NON_BUILDABLE_JIMOK = {
     "도", "도로",
     "천", "하천",
@@ -156,6 +172,58 @@ def filter_buildable_candidate_result(raw_text: str) -> str:
         "removed_zone": dict(sorted(removed_zone.items())),
     }
     return json.dumps(filtered, ensure_ascii=False)
+
+
+def split_existing_building_statistics_result(raw_text: str) -> tuple[str, str]:
+    """Return (model_text, visual_text) for existing building statistics results.
+
+    The model only needs stats and examples; the frontend needs full geometry
+    features. Keeping both in one SSE payload can exceed the frontend cap and
+    leave result_text as truncated invalid JSON.
+    """
+    try:
+        raw = json.loads(raw_text)
+    except json.JSONDecodeError:
+        return raw_text, raw_text
+
+    target = _feature_container(raw)
+    if target is None:
+        return raw_text, raw_text
+
+    features = target.get("features")
+    if not isinstance(features, list):
+        return raw_text, raw_text
+
+    model_payload = copy.deepcopy(raw)
+    model_target = _feature_container(model_payload)
+    if model_target is None:
+        return raw_text, raw_text
+
+    model_target.pop("features", None)
+    if model_target.get("type") == "FeatureCollection":
+        model_target.pop("type", None)
+    model_target["features_omitted_for_model"] = len(features)
+    model_target["visual_payload_split"] = {
+        "reason": "keep_model_context_stats_only",
+        "visual_result_text": "FeatureCollection with matched parcel/building geometries was sent only to the frontend SSE result_text.",
+    }
+
+    visual_payload = {
+        "type": "FeatureCollection",
+        "features": features,
+        "visual_payload_split": {
+            "reason": "keep_sse_payload_geojson_only",
+            "model_result_text": "Statistics and verbose probe details were sent only to the model tool message.",
+        },
+    }
+    for key in EXISTING_STATS_VISUAL_META_KEYS:
+        if key in target:
+            visual_payload[key] = target[key]
+
+    return (
+        json.dumps(model_payload, ensure_ascii=False),
+        json.dumps(visual_payload, ensure_ascii=False),
+    )
 
 
 def _feature_container(payload: Any) -> dict[str, Any] | None:

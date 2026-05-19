@@ -225,6 +225,68 @@ async def test_tool_call_end_sse_includes_result_text():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_existing_building_statistics_stream_splits_model_stats_from_visual_features():
+    feature = {
+        "type": "Feature",
+        "geometry": {"type": "Polygon", "coordinates": [[[127, 37], [127.001, 37], [127.001, 37.001], [127, 37.001], [127, 37]]]},
+        "properties": {"pnu": "p1", "address": "문정동 118-15", "matched_use": "다세대주택"},
+    }
+    result_text = json.dumps({
+        "type": "FeatureCollection",
+        "matched_buildings": 1,
+        "coverage": "full",
+        "parcels_probed": 80,
+        "features": [feature],
+        "detail_probe_log": "x" * 300_000,
+    }, ensure_ascii=False)
+    pool = make_pool_mock_with_tool("analyze__existing_building_statistics", result_text)
+
+    respx.post("http://fake-vllm/v1/chat/completions").mock(
+        side_effect=[
+            httpx.Response(200, text=(
+                'data: {"id":"x","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"analyze__existing_building_statistics","arguments":"{\\"lng\\":127,\\"lat\\":37,\\"radius_m\\":300}"}}]},"finish_reason":null}]}\n\n'
+                'data: {"id":"x","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n\n'
+                'data: [DONE]\n\n'
+            )),
+            httpx.Response(200, text=(
+                'data: {"id":"y","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{"content":"총 1개소입니다."},"finish_reason":null}]}\n\n'
+                'data: {"id":"y","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n'
+                'data: [DONE]\n\n'
+            )),
+        ]
+    )
+
+    chunks: list[bytes] = []
+    async for chunk in run_chat_streaming(
+        messages=[{"role": "user", "content": "문정동 118-15 근처에 다세대주택 얼마나 있어?"}],
+        pool=pool,
+        vllm_base_url="http://fake-vllm/v1",
+        vllm_api_key="x",
+        model="fake-model",
+        max_iterations=5,
+        max_tool_result_bytes=1_000_000,
+    ):
+        chunks.append(chunk)
+
+    events = tool_call_end_events(chunks)
+    visual = json.loads(events[0]["result_text"])
+    assert visual["type"] == "FeatureCollection"
+    assert visual["matched_buildings"] == 1
+    assert visual["features"][0]["properties"]["pnu"] == "p1"
+    assert "detail_probe_log" not in visual
+    assert len(events[0]["result_text"].encode("utf-8")) < 262_144
+
+    second_payload = json.loads(respx.calls[1].request.content)
+    model_tool_messages = [message for message in second_payload["messages"] if message["role"] == "tool"]
+    model_result = json.loads(model_tool_messages[-1]["content"])
+    assert model_result["matched_buildings"] == 1
+    assert model_result["features_omitted_for_model"] == 1
+    assert "features" not in model_result
+    assert "detail_probe_log" in model_result
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_buildable_candidate_stream_filters_non_buildable_visual_result():
     result_text = json.dumps({
         "features": [
