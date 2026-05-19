@@ -225,6 +225,71 @@ async def test_tool_call_end_sse_includes_result_text():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_stream_pages_oversized_feature_collection_visual_result():
+    features = []
+    for idx in range(80):
+        lng = 127 + idx * 0.0001
+        features.append({
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[lng, 37], [lng + 0.00005, 37], [lng + 0.00005, 37.00005], [lng, 37.00005], [lng, 37]]],
+            },
+            "properties": {
+                "pnu": f"P{idx}",
+                "address": "문정동 " + ("상세주소" * 300),
+                "matched_use": "다세대주택",
+            },
+        })
+    result_text = json.dumps({
+        "type": "FeatureCollection",
+        "matched_buildings": len(features),
+        "features": features,
+    }, ensure_ascii=False)
+    pool = make_pool_mock_with_tool("analyze__existing_building_statistics", result_text)
+
+    respx.post("http://fake-vllm/v1/chat/completions").mock(
+        side_effect=[
+            httpx.Response(200, text=(
+                'data: {"id":"x","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_stats","type":"function","function":{"name":"analyze__existing_building_statistics","arguments":"{\\"lng\\":127,\\"lat\\":37,\\"radius_m\\":300}"}}]},"finish_reason":null}]}\n\n'
+                'data: {"id":"x","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n\n'
+                'data: [DONE]\n\n'
+            )),
+            httpx.Response(200, text=(
+                'data: {"id":"y","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{"content":"총 80개소입니다."},"finish_reason":null}]}\n\n'
+                'data: {"id":"y","object":"chat.completion.chunk","model":"fake","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n'
+                'data: [DONE]\n\n'
+            )),
+        ]
+    )
+
+    chunks: list[bytes] = []
+    async for chunk in run_chat_streaming(
+        messages=[{"role": "user", "content": "문정동 118-15 근처 다세대주택 시각화"}],
+        pool=pool,
+        vllm_base_url="http://fake-vllm/v1",
+        vllm_api_key="x",
+        model="fake-model",
+        max_iterations=5,
+        max_tool_result_bytes=1_000_000,
+    ):
+        chunks.append(chunk)
+
+    page_events = custom_events(chunks, "tool_result_page")
+    end_events = tool_call_end_events(chunks)
+    manifest = json.loads(end_events[0]["result_text"])
+
+    assert len(page_events) > 1
+    assert all(event["tool_call_id"] == "call_stats" for event in page_events)
+    assert len(end_events[0]["result_text"].encode("utf-8")) < 262_144
+    assert manifest["features"] == []
+    assert manifest["visual_payload_paged"]["feature_count"] == 80
+    assert manifest["visual_payload_paged"]["page_count"] == len(page_events)
+    assert sum(len(json.loads(event["result_text"])["features"]) for event in page_events) == 80
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_existing_building_statistics_stream_splits_model_stats_from_visual_features():
     feature = {
         "type": "Feature",

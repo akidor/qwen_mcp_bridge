@@ -9,6 +9,11 @@ import { setCurrentIntent, type IntentLabel } from "../intent/intentStore";
 import { getCurrentParcelContext } from "../currentParcelContext";
 import RoutingDebugPanel from "./RoutingDebugPanel";
 import { routingDebugFromEvent, type RoutingDebugMeta } from "./routingDebug";
+import {
+  createToolResultPageStore,
+  rememberToolResultPage,
+  resolvePagedToolResultText,
+} from "./toolResultPages";
 
 type ChatRole = "user" | "assistant" | "system";
 
@@ -74,6 +79,7 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const pagedToolResultsRef = useRef(createToolResultPageStore());
   // 사용자가 위로 스크롤한 상태인지 추적. streaming 중 smooth 애니메이션 누적으로 viewport가
   // distance > 120 영역에 밀려 자동 스크롤이 끊기는 회귀 방지.
   const userNearBottomRef = useRef(true);
@@ -231,8 +237,16 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
             });
             continue;
           }
+          if (data.type === "tool_result_page") {
+            rememberToolResultPage(pagedToolResultsRef.current, data);
+            continue;
+          }
           if (data.type === "tool_call_end") {
-            const resultText = typeof data.result_text === "string" ? data.result_text : "";
+            const resultText = resolvePagedToolResultText(
+              pagedToolResultsRef.current,
+              data,
+              typeof data.result_text === "string" ? data.result_text : "",
+            );
             const scene = parseSceneData(data.name, resultText);
             const sceneCandidates = scene?.candidates?.map((c: any) => ({
               id: c.id,

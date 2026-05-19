@@ -124,7 +124,9 @@ describe("architecture data", () => {
     expect(nodeById("analyze").details.join(" ")).toContain("detail_concurrency");
     expect(nodeById("polygon").details.join(" ")).toContain("/api/parcels/details");
     expect(nodeById("loop").details.join(" ")).toContain("stats-only");
+    expect(nodeById("loop").details.join(" ")).toContain("tool_result_page");
     expect(nodeById("toolResultParser").details.join(" ")).toContain("GeoJSON-only");
+    expect(nodeById("toolResultParser").details.join(" ")).toContain("paged FeatureCollection");
   });
 
   it("models chat routing debug metadata and current parcel context as visible observability paths", () => {

@@ -2,6 +2,7 @@ import json
 
 from qwen_mcp_bridge.visual_filter import (
     filter_buildable_candidate_result,
+    paginate_feature_collection_visual_result,
     should_filter_buildable_visual_result,
     should_suppress_intermediate_parcel_visual_result,
     split_existing_building_statistics_result,
@@ -162,3 +163,42 @@ def test_split_existing_building_statistics_result_separates_model_and_visual_pa
     assert visual["matched_buildings"] == 2
     assert visual["coverage"] == "full"
     assert "detail_probe_log" not in visual
+
+
+def test_paginate_feature_collection_visual_result_returns_manifest_and_valid_pages():
+    features = []
+    for idx in range(12):
+        lng = 127 + idx * 0.001
+        features.append({
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[lng, 37], [lng + 0.0005, 37], [lng + 0.0005, 37.0005], [lng, 37.0005], [lng, 37]]],
+            },
+            "properties": {"pnu": f"P{idx}", "address": "문정동 " + ("긴주소" * 40)},
+        })
+    raw = json.dumps({
+        "type": "FeatureCollection",
+        "matched_buildings": 12,
+        "features": features,
+    }, ensure_ascii=False)
+
+    manifest_text, page_texts = paginate_feature_collection_visual_result(
+        raw,
+        max_result_bytes=1_500,
+        page_target_bytes=900,
+    )
+
+    manifest = json.loads(manifest_text)
+    pages = [json.loads(text) for text in page_texts]
+    assert len(manifest_text.encode("utf-8")) < 1_500
+    assert manifest["type"] == "FeatureCollection"
+    assert manifest["features"] == []
+    assert manifest["matched_buildings"] == 12
+    assert manifest["bbox"] == [127.0, 37, 127.0115, 37.0005]
+    assert manifest["visual_payload_paged"]["feature_count"] == 12
+    assert manifest["visual_payload_paged"]["page_count"] == len(pages)
+    assert len(pages) > 1
+    assert sum(len(page["features"]) for page in pages) == 12
+    assert pages[0]["visual_payload_page"]["page_index"] == 0
+    assert pages[-1]["visual_payload_page"]["page_count"] == len(pages)

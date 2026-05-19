@@ -29,6 +29,7 @@ from qwen_mcp_bridge._tool_result import truncate_tool_text
 from qwen_mcp_bridge.visual_filter import (
     EXISTING_BUILDING_STATISTICS_TOOL,
     filter_buildable_candidate_result,
+    paginate_feature_collection_visual_result,
     should_filter_buildable_visual_result,
     should_suppress_intermediate_parcel_visual_result,
     split_existing_building_statistics_result,
@@ -271,6 +272,7 @@ async def run_chat_streaming(
                 yield _sse({
                     "type": "tool_call_start",
                     "name": name,
+                    "tool_call_id": tc.get("id"),
                     "args_preview": args_preview,
                 })
 
@@ -320,11 +322,16 @@ async def run_chat_streaming(
                 # T5: result_text는 frontend auto_layer가 GeoJSON 추출에 쓰므로 raw 전달.
                 # 256KB cap만 적용 (필지 집계·POI FeatureCollection·scene_data도 통과). 모델로 가는 텍스트와 별개.
                 _RESULT_TEXT_SSE_CAP = 262144  # 256KB — design.generate_scene scene_data inline용
+                tool_result_page_texts: list[str] = []
                 if name != EXISTING_BUILDING_STATISTICS_TOOL:
                     if should_suppress_intermediate_parcel_visual_result(name, work):
                         tool_text_for_sse = suppress_intermediate_parcel_visual_result(tool_text_for_sse)
                     elif should_filter_buildable_visual_result(name, work):
                         tool_text_for_sse = filter_buildable_candidate_result(tool_text_for_sse)
+                tool_text_for_sse, tool_result_page_texts = paginate_feature_collection_visual_result(
+                    tool_text_for_sse,
+                    max_result_bytes=_RESULT_TEXT_SSE_CAP,
+                )
                 if len(tool_text_for_sse.encode("utf-8")) > _RESULT_TEXT_SSE_CAP:
                     enc = tool_text_for_sse.encode("utf-8")[:_RESULT_TEXT_SSE_CAP]
                     while enc:
@@ -336,9 +343,20 @@ async def run_chat_streaming(
                     else:
                         tool_text_for_sse = ""
 
+                for page_index, page_text in enumerate(tool_result_page_texts):
+                    yield _sse({
+                        "type": "tool_result_page",
+                        "name": name,
+                        "tool_call_id": tc.get("id"),
+                        "page_index": page_index,
+                        "page_count": len(tool_result_page_texts),
+                        "result_text": page_text,
+                    })
+
                 yield _sse({
                     "type": "tool_call_end",
                     "name": name,
+                    "tool_call_id": tc.get("id"),
                     "duration_ms": duration_ms,
                     "result_size": len(tool_text),
                     "result_text": tool_text_for_sse,

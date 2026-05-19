@@ -26,6 +26,13 @@ EXISTING_STATS_VISUAL_META_KEYS = (
     "detail_fetch_mode",
     "detail_concurrency",
 )
+PAGED_VISUAL_META_KEYS = EXISTING_STATS_VISUAL_META_KEYS + (
+    "total_parcels",
+    "use_counts",
+    "area_stats",
+    "notes",
+    "hint",
+)
 NON_BUILDABLE_JIMOK = {
     "도", "도로",
     "천", "하천",
@@ -226,12 +233,128 @@ def split_existing_building_statistics_result(raw_text: str) -> tuple[str, str]:
     )
 
 
+def paginate_feature_collection_visual_result(
+    raw_text: str,
+    *,
+    max_result_bytes: int,
+    page_target_bytes: int | None = None,
+) -> tuple[str, list[str]]:
+    if max_result_bytes <= 0 or len(raw_text.encode("utf-8")) <= max_result_bytes:
+        return raw_text, []
+
+    try:
+        raw = json.loads(raw_text)
+    except json.JSONDecodeError:
+        return raw_text, []
+
+    target = _feature_container(raw)
+    if target is None:
+        return raw_text, []
+
+    features = target.get("features")
+    if not isinstance(features, list) or not features:
+        return raw_text, []
+
+    page_target = page_target_bytes or max(16_384, max_result_bytes // 2)
+    feature_pages = _chunk_features(features, page_target)
+    if not feature_pages:
+        return raw_text, []
+
+    page_count = len(feature_pages)
+    page_texts = [
+        _page_text(page, page_index=index, page_count=page_count, total_features=len(features))
+        for index, page in enumerate(feature_pages)
+    ]
+
+    manifest = copy.deepcopy(raw)
+    manifest_target = _feature_container(manifest)
+    if manifest_target is None:
+        return raw_text, []
+    manifest_target["features"] = []
+    bbox = _bbox_for_features(features)
+    if bbox:
+        manifest_target["bbox"] = bbox
+    manifest_target["visual_payload_paged"] = {
+        "reason": "sse_result_text_cap",
+        "event_type": "tool_result_page",
+        "feature_count": len(features),
+        "page_count": page_count,
+        "max_result_bytes": max_result_bytes,
+    }
+    for key in list(manifest_target.keys()):
+        if key in {"type", "features", "bbox", "visual_payload_paged"}:
+            continue
+        if key not in PAGED_VISUAL_META_KEYS:
+            manifest_target.pop(key, None)
+
+    return json.dumps(manifest, ensure_ascii=False), page_texts
+
+
 def _feature_container(payload: Any) -> dict[str, Any] | None:
     if isinstance(payload, dict) and payload.get("ok") is True and isinstance(payload.get("result"), dict):
         payload = payload["result"]
     if isinstance(payload, dict) and isinstance(payload.get("features"), list):
         return payload
     return None
+
+
+def _chunk_features(features: list[Any], page_target_bytes: int) -> list[list[Any]]:
+    pages: list[list[Any]] = []
+    current: list[Any] = []
+    for feature in features:
+        candidate = [*current, feature]
+        if current and len(_page_text(candidate, page_index=0, page_count=0, total_features=len(features)).encode("utf-8")) > page_target_bytes:
+            pages.append(current)
+            current = [feature]
+        else:
+            current = candidate
+    if current:
+        pages.append(current)
+    return pages
+
+
+def _page_text(features: list[Any], *, page_index: int, page_count: int, total_features: int) -> str:
+    return json.dumps({
+        "type": "FeatureCollection",
+        "features": features,
+        "visual_payload_page": {
+            "page_index": page_index,
+            "page_count": page_count,
+            "feature_count": len(features),
+            "total_features": total_features,
+        },
+    }, ensure_ascii=False)
+
+
+def _bbox_for_features(features: list[Any]) -> list[float] | None:
+    coords: list[tuple[float, float]] = []
+    for feature in features:
+        if not isinstance(feature, dict):
+            continue
+        geometry = feature.get("geometry")
+        if isinstance(geometry, dict):
+            coords.extend(_iter_lng_lat(geometry.get("coordinates")))
+    if not coords:
+        return None
+    lngs = [lng for lng, _lat in coords]
+    lats = [lat for _lng, lat in coords]
+    return [round(min(lngs), 7), round(min(lats), 7), round(max(lngs), 7), round(max(lats), 7)]
+
+
+def _iter_lng_lat(value: Any) -> list[tuple[float, float]]:
+    if (
+        isinstance(value, list)
+        and len(value) >= 2
+        and isinstance(value[0], (int, float))
+        and isinstance(value[1], (int, float))
+    ):
+        return [(float(value[0]), float(value[1]))]
+    if isinstance(value, list):
+        points: list[tuple[float, float]] = []
+        for item in value:
+            points.extend(_iter_lng_lat(item))
+        return points
+    return []
 
 
 def _exclude_reason(props: dict[str, Any]) -> tuple[str, str] | None:
