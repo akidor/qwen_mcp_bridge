@@ -494,7 +494,11 @@ export const ARCH_NODES: ArchNode[] = [
     cluster: "data",
     connectivityRole: "sink",
     position: [7.25, -0.3, 0.2],
-    details: ["필지 geometry, 건축물대장, WMS/공간 데이터를 제공", "누락/샘플링 여부를 validator가 확인해야 함"],
+    details: [
+      "필지 geometry, 건축물대장, WMS/공간 데이터를 제공",
+      "/api/parcels/details batch 상세 조회가 existing_building_statistics 응답성에 직접 영향",
+      "누락/샘플링 여부를 validator가 확인해야 함",
+    ],
   },
   {
     id: "toolResultParser",

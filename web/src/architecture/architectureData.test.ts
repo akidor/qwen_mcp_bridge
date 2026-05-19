@@ -121,6 +121,7 @@ describe("architecture data", () => {
     expect(nodeById("routingHintBuilder").details.join(" ")).toContain("build_routing_hint");
     expect(nodeById("analyze").details.join(" ")).toContain("distance_from_center");
     expect(nodeById("analyze").details.join(" ")).toContain("detail_concurrency");
+    expect(nodeById("polygon").details.join(" ")).toContain("/api/parcels/details");
   });
 
   it("models chat routing debug metadata and current parcel context as visible observability paths", () => {
