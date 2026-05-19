@@ -119,6 +119,7 @@ describe("architecture data", () => {
     expect(nodeById("anchorExtractor").details.join(" ")).toContain("_JIBUN_RE");
     expect(nodeById("followupContext").details.join(" ")).toContain("시각화만");
     expect(nodeById("routingHintBuilder").details.join(" ")).toContain("build_routing_hint");
+    expect(nodeById("analyze").details.join(" ")).toContain("distance_from_center");
   });
 
   it("models chat routing debug metadata and current parcel context as visible observability paths", () => {

@@ -256,7 +256,7 @@ def test_routing_hint_existing_stats_understands_how_many_wording():
     assert "bucket=기존 건축물 통계 조회" in hint
     assert "anchor_text=문정동 118-15" in hint
     assert "analyze__existing_building_statistics" in hint
-    assert "probe_n=400" in hint
+    assert "probe_n=800" in hint
     assert "analyze__find_existing_buildings" not in hint
 
 

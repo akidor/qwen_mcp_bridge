@@ -55,6 +55,7 @@ _FEASIBILITY_RE = re.compile(
     r"건축\s*되나|건축\s*가능|개발\s*가능|신축\s*가능"
 )
 _RISK_RE = re.compile(r"리스크|위험|사도\s*돼|매수.*괜찮|살까|매입.*괜찮|매수.*안전")
+_STATS_PROBE_N = 800
 
 
 def build_routing_hint(
@@ -395,13 +396,13 @@ def _existing_stats_hint(text: str, anchor_type: str, anchor_text: str, radius: 
         chain = (
             "locate__search_address -> locate__get_parcel -> "
             f"analyze__existing_building_statistics(lng, lat, radius_m={radius}, "
-            "use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n=400, examples_n=5)"
+            f"use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n={_STATS_PROBE_N}, examples_n=5)"
         )
     else:
         chain = (
             "locate__search_facility -> "
             f"analyze__existing_building_statistics(lng, lat, radius_m={radius}, "
-            "use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n=400, examples_n=5)"
+            f"use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n={_STATS_PROBE_N}, examples_n=5)"
         )
     lines = [
         *_routing_header(),
@@ -607,19 +608,19 @@ def _current_parcel_stats_hint(text: str, current_context: dict[str, Any] | None
         chain = (
             "current_parcel_centroid -> "
             "analyze__existing_building_statistics(lng, lat, radius_m=300, "
-            "use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n=400, examples_n=5)"
+            f"use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n={_STATS_PROBE_N}, examples_n=5)"
         )
     elif current_context and current_context.get("pnu"):
         chain = (
             "current_parcel_pnu -> locate__get_parcel -> "
             "analyze__existing_building_statistics(lng, lat, radius_m=300, "
-            "use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n=400, examples_n=5)"
+            f"use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n={_STATS_PROBE_N}, examples_n=5)"
         )
     else:
         chain = (
             "최근 선택된 필지/카드/locate__get_parcel 결과의 geometry 중심점 -> "
             "analyze__existing_building_statistics(lng, lat, radius_m=300, "
-            "use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n=400, examples_n=5)"
+            f"use_keywords=[다세대주택,다가구주택,공동주택,연립주택], probe_n={_STATS_PROBE_N}, examples_n=5)"
         )
     answer_guard = _current_parcel_answer_guard(
         current_context,
