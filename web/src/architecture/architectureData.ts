@@ -456,7 +456,7 @@ export const ARCH_NODES: ArchNode[] = [
     position: [5.6, 0.8, 0.85],
     details: [
       "find_existing_buildings, existing_building_statistics",
-      "distance_from_center probe, expanded_use_keywords, eligible coverage가 다세대 통계 정확도에 직접 영향",
+      "distance_from_center probe, expanded_use_keywords, eligible coverage, detail_concurrency가 다세대 통계 정확도와 응답성에 직접 영향",
     ],
   },
   {

@@ -257,6 +257,7 @@ def test_routing_hint_existing_stats_understands_how_many_wording():
     assert "anchor_text=문정동 118-15" in hint
     assert "analyze__existing_building_statistics" in hint
     assert "probe_n=800" in hint
+    assert "detail_concurrency=16" in hint
     assert "analyze__find_existing_buildings" not in hint
 
 
@@ -269,6 +270,7 @@ def test_routing_hint_current_parcel_stats_chain():
     assert "bucket=기존 건축물 통계 조회" in hint
     assert "anchor_type=current_parcel" in hint
     assert "analyze__existing_building_statistics" in hint
+    assert "detail_concurrency=16" in hint
     assert "fallback=최근 선택된 필지가 없으면" in hint
 
 
