@@ -127,6 +127,8 @@ describe("architecture data", () => {
     expect(nodeById("loop").details.join(" ")).toContain("tool_result_page");
     expect(nodeById("toolResultParser").details.join(" ")).toContain("GeoJSON-only");
     expect(nodeById("toolResultParser").details.join(" ")).toContain("paged FeatureCollection");
+    expect(nodeById("toolResultParser").details.join(" ")).toContain("page progress");
+    expect(nodeById("mapFailureGuards").details.join(" ")).toContain("missing page");
   });
 
   it("models chat routing debug metadata and current parcel context as visible observability paths", () => {

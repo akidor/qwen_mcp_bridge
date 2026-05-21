@@ -517,6 +517,7 @@ export const ARCH_NODES: ArchNode[] = [
       "geometry가 없으면 지도 레이어가 아니라 히스토리 메시지로만 남김",
       "통계 도구의 GeoJSON-only result_text를 받아 큰 probe 통계와 분리된 지도 레이어를 생성",
       "tool_call_id별 page store가 paged FeatureCollection을 다시 합쳐 applyToolResult로 넘김",
+      "page progress를 assistant tool pill에 갱신해 대형 레이어 수신 상태를 드러냄",
     ],
   },
   {
@@ -535,7 +536,11 @@ export const ARCH_NODES: ArchNode[] = [
     kind: "render",
     cluster: "rendering",
     position: [-4.35, -1.25, -0.75],
-    details: ["지도 요청인데 geometry features가 없으면 말로 표시했다고 끝내면 안 됨", "bbox 없음, layer 생성 실패, parser 실패 같은 상태를 드러내야 함"],
+    details: [
+      "지도 요청인데 geometry features가 없으면 말로 표시했다고 끝내면 안 됨",
+      "bbox 없음, layer 생성 실패, parser 실패 같은 상태를 드러내야 함",
+      "paged FeatureCollection의 missing page가 있으면 빈 manifest를 지도에 넘기지 않고 경고로 중단",
+    ],
   },
   {
     id: "autoLayerManager",

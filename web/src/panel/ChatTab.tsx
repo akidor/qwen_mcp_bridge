@@ -12,7 +12,7 @@ import { routingDebugFromEvent, type RoutingDebugMeta } from "./routingDebug";
 import {
   createToolResultPageStore,
   rememberToolResultPage,
-  resolvePagedToolResultText,
+  resolvePagedToolResult,
 } from "./toolResultPages";
 
 type ChatRole = "user" | "assistant" | "system";
@@ -26,12 +26,22 @@ export type { ParcelState };
 export type ToolEvent =
   | { kind: "start"; name: string; argsPreview: string }
   | {
+      kind: "page";
+      name: string;
+      toolCallId?: string;
+      receivedPages: number;
+      pageCount: number;
+      receivedFeatures: number;
+      totalFeatures?: number;
+    }
+  | {
       kind: "end";
       name: string;
       durationMs: number;
       resultSize: number;
       error: boolean;
       resultText?: string;
+      pageWarning?: string;
       sceneData?: SceneData;
       sceneCandidates?: Array<{
         id: string;
@@ -238,15 +248,39 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
             continue;
           }
           if (data.type === "tool_result_page") {
-            rememberToolResultPage(pagedToolResultsRef.current, data);
+            const progress = rememberToolResultPage(pagedToolResultsRef.current, data);
+            if (progress) {
+              upsertToolPageEvent(setMessages, assistantIdx, {
+                kind: "page",
+                name: progress.name,
+                toolCallId: progress.key,
+                receivedPages: progress.receivedPages,
+                pageCount: progress.pageCount,
+                receivedFeatures: progress.receivedFeatures,
+                totalFeatures: progress.totalFeatures,
+              });
+            }
             continue;
           }
           if (data.type === "tool_call_end") {
-            const resultText = resolvePagedToolResultText(
+            const pagedResult = resolvePagedToolResult(
               pagedToolResultsRef.current,
               data,
               typeof data.result_text === "string" ? data.result_text : "",
             );
+            if (pagedResult.status === "missing_pages") {
+              appendToolEvent(setMessages, assistantIdx, {
+                kind: "end",
+                name: data.name,
+                durationMs: data.duration_ms ?? 0,
+                resultSize: data.result_size ?? 0,
+                error: true,
+                resultText: pagedResult.resultText,
+                pageWarning: pagedResult.warning ?? "시각화 페이지 수신이 완료되지 않았습니다.",
+              });
+              continue;
+            }
+            const resultText = pagedResult.resultText;
             const scene = parseSceneData(data.name, resultText);
             const sceneCandidates = scene?.candidates?.map((c: any) => ({
               id: c.id,
@@ -560,18 +594,39 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
                     {expanded ? (
                       <div className="tool-events-detail">
                         <div className="tool-pills">
-                          {message.toolEvents.map((te, i) =>
-                            te.kind === "start" ? (
+                          {message.toolEvents.map((te, i) => {
+                            if (te.kind === "start") {
+                              return (
                               <span key={i} className="tool-pill running" title={te.name}>
                                 🔧 {prettyToolName(te.name)}
                               </span>
-                            ) : (
+                              );
+                            }
+                            if (te.kind === "page") {
+                              const featureLabel =
+                                typeof te.totalFeatures === "number"
+                                  ? `${te.receivedFeatures}/${te.totalFeatures} features`
+                                  : `${te.receivedFeatures} features`;
+                              return (
+                                <span key={i} className="tool-pill running" title={te.name}>
+                                  ⇣ {prettyToolName(te.name)} · {te.receivedPages}/{te.pageCount} pages · {featureLabel}
+                                </span>
+                              );
+                            }
+                            return (
                               <span key={i} className={`tool-pill ${te.error ? "err" : "ok"}`} title={te.name}>
                                 {te.error ? "✗" : "✓"} {prettyToolName(te.name)} · {te.durationMs}ms · {te.resultSize}B
                               </span>
-                            )
-                          )}
+                            );
+                          })}
                         </div>
+                        {message.toolEvents.map((te, i) =>
+                          te.kind === "end" && te.pageWarning ? (
+                            <div key={`page-warning-${i}`} className="tool-page-warning">
+                              {te.pageWarning}
+                            </div>
+                          ) : null
+                        )}
                         {message.toolEvents.map((te, i) => {
                           if (te.kind !== "end" || te.error || !te.resultText) return null;
                           const spec = getChartSpec(te.name, te.resultText);
@@ -1074,6 +1129,29 @@ function appendToolEvent(setMessages: React.Dispatch<React.SetStateAction<ChatMe
   setMessages((current) => {
     const next = [...current];
     if (next[idx]) next[idx] = { ...next[idx], toolEvents: [...(next[idx].toolEvents || []), event] };
+    return next;
+  });
+}
+
+function upsertToolPageEvent(
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
+  idx: number,
+  event: ToolEvent & { kind: "page" },
+) {
+  setMessages((current) => {
+    const next = [...current];
+    const message = next[idx];
+    if (!message) return next;
+    const toolEvents = [...(message.toolEvents || [])];
+    const existingIndex = toolEvents.findIndex(
+      (item) => item.kind === "page" && item.toolCallId === event.toolCallId,
+    );
+    if (existingIndex >= 0) {
+      toolEvents[existingIndex] = event;
+    } else {
+      toolEvents.push(event);
+    }
+    next[idx] = { ...message, toolEvents };
     return next;
   });
 }

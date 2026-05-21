@@ -187,6 +187,15 @@ input, textarea, button, select {
 .tool-pill.err { color: #b91c1c; }
 .tool-pill.running { animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.55; } }
+.tool-page-warning {
+  border: 1px solid color-mix(in srgb, #f59e0b 45%, var(--border));
+  background: color-mix(in srgb, #f59e0b 9%, var(--code-bg));
+  color: #92400e;
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-size: 11px;
+  line-height: 1.45;
+}
 
 .routing-debug-block {
   display: flex;

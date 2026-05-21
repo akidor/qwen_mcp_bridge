@@ -2,7 +2,9 @@ import { describe, expect, test } from "vitest";
 
 import {
   createToolResultPageStore,
+  getToolResultPageProgress,
   rememberToolResultPage,
+  resolvePagedToolResult,
   resolvePagedToolResultText,
 } from "./toolResultPages";
 
@@ -70,5 +72,64 @@ describe("tool result page hydration", () => {
       tool_call_id: "call_2",
       result_text: manifest,
     })).toBe(manifest);
+  });
+
+  test("reports page receive progress for a paged tool result", () => {
+    const store = createToolResultPageStore();
+    const progress = rememberToolResultPage(store, {
+      type: "tool_result_page",
+      name: "analyze__existing_building_statistics",
+      tool_call_id: "call_progress",
+      page_index: 0,
+      page_count: 3,
+      result_text: JSON.stringify({
+        type: "FeatureCollection",
+        features: [
+          { type: "Feature", geometry: polygon, properties: { pnu: "P1" } },
+          { type: "Feature", geometry: polygon, properties: { pnu: "P2" } },
+        ],
+        visual_payload_page: { total_features: 7 },
+      }),
+    });
+
+    expect(progress).toEqual({
+      key: "call_progress",
+      name: "analyze__existing_building_statistics",
+      receivedPages: 1,
+      pageCount: 3,
+      receivedFeatures: 2,
+      totalFeatures: 7,
+    });
+    expect(getToolResultPageProgress(store, { tool_call_id: "call_progress" })).toEqual(progress);
+  });
+
+  test("returns a missing-pages guard when final manifest arrives before all pages", () => {
+    const store = createToolResultPageStore();
+    rememberToolResultPage(store, {
+      type: "tool_result_page",
+      name: "analyze__existing_building_statistics",
+      tool_call_id: "call_missing",
+      page_index: 0,
+      page_count: 2,
+      result_text: JSON.stringify({ type: "FeatureCollection", features: [{ type: "Feature", geometry: polygon, properties: { pnu: "P1" } }] }),
+    });
+    const manifest = JSON.stringify({
+      type: "FeatureCollection",
+      features: [],
+      visual_payload_paged: { feature_count: 2, page_count: 2 },
+    });
+
+    const resolved = resolvePagedToolResult(store, {
+      name: "analyze__existing_building_statistics",
+      tool_call_id: "call_missing",
+      result_text: manifest,
+    });
+
+    expect(resolved.status).toBe("missing_pages");
+    expect(resolved.resultText).toBe(manifest);
+    expect(resolved.progress?.receivedPages).toBe(1);
+    expect(resolved.progress?.pageCount).toBe(2);
+    expect(resolved.missingPages).toEqual([1]);
+    expect(resolved.warning).toContain("1/2");
   });
 });
