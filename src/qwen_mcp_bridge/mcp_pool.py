@@ -1,6 +1,7 @@
 """urban_mcp 8개 도메인 stdio MCP 서버 풀."""
 from __future__ import annotations
 
+import json
 import logging
 from contextlib import AsyncExitStack
 from typing import Any, Iterable
@@ -22,10 +23,10 @@ DOMAINS: tuple[str, ...] = (
 
 
 def _coerce_args(args: dict, schema: dict | None) -> dict:
-    """Qwen이 정수/실수/불리언 인자를 문자열로 따옴표 처리해 보낼 때 schema 보고 자동 변환.
+    """Qwen이 인자를 문자열로 따옴표 처리해 보낼 때 schema 보고 자동 변환.
 
-    JSON Schema의 properties에서 type이 'integer' / 'number' / 'boolean'을 포함하면
-    string 입력을 시도적으로 cast. 변환 실패하면 원본 유지.
+    JSON Schema의 properties에서 type이 integer/number/boolean/array를 포함하면
+    string 입력을 시도적으로 cast한다. 변환 실패하면 원본 유지.
     """
     if not isinstance(args, dict) or not schema:
         return args
@@ -41,6 +42,11 @@ def _coerce_args(args: dict, schema: dict | None) -> dict:
             continue
         types = prop_def.get("type")
         allowed = set(types) if isinstance(types, list) else ({types} if types else set())
+        if "array" in allowed:
+            coerced_array = _coerce_array_string(value, prop_def)
+            if coerced_array is not None:
+                out[key] = coerced_array
+                continue
         if "integer" in allowed:
             try:
                 out[key] = int(value)
@@ -60,6 +66,33 @@ def _coerce_args(args: dict, schema: dict | None) -> dict:
             elif v in {"false", "0", "no"}:
                 out[key] = False
     return out
+
+
+def _coerce_array_string(value: str, prop_def: dict) -> list[Any] | None:
+    stripped = value.strip()
+    if not stripped:
+        return None
+
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        parsed = None
+    if isinstance(parsed, list):
+        return parsed
+
+    item_def = prop_def.get("items")
+    item_type = item_def.get("type") if isinstance(item_def, dict) else None
+    if item_type not in {"string", None}:
+        return None
+
+    if stripped.startswith("[") and stripped.endswith("]"):
+        stripped = stripped[1:-1]
+    parts = [
+        part.strip().strip("\"'")
+        for part in stripped.split(",")
+        if part.strip().strip("\"'")
+    ]
+    return parts or None
 
 
 class PoolNotReadyError(RuntimeError):

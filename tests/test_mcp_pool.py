@@ -1,6 +1,6 @@
 import os
 import pytest
-from qwen_mcp_bridge.mcp_pool import McpPool, DOMAINS, PoolNotReadyError
+from qwen_mcp_bridge.mcp_pool import McpPool, DOMAINS, PoolNotReadyError, _coerce_args
 
 
 URBAN_MCP_ROOT = os.environ.get("URBAN_MCP_ROOT", "/home/akidor/urban_mcp")
@@ -57,3 +57,33 @@ def test_default_domains_count():
         "locate", "inspect", "reach", "simulate",
         "estimate", "design", "export", "analyze",
     }
+
+
+def test_coerce_args_parses_json_array_string_for_array_schema():
+    schema = {
+        "properties": {
+            "use_keywords": {"type": ["array", "null"], "items": {"type": "string"}},
+        },
+    }
+
+    coerced = _coerce_args(
+        {"use_keywords": '["다세대주택", "다가구주택", "공동주택", "연립주택"]'},
+        schema,
+    )
+
+    assert coerced["use_keywords"] == ["다세대주택", "다가구주택", "공동주택", "연립주택"]
+
+
+def test_coerce_args_parses_hint_style_array_string_for_array_schema():
+    schema = {
+        "properties": {
+            "use_keywords": {"type": ["array", "null"], "items": {"type": "string"}},
+        },
+    }
+
+    coerced = _coerce_args(
+        {"use_keywords": "[다세대주택,다가구주택,공동주택,연립주택]"},
+        schema,
+    )
+
+    assert coerced["use_keywords"] == ["다세대주택", "다가구주택", "공동주택", "연립주택"]
