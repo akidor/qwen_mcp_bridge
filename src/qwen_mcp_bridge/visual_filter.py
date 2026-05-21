@@ -33,6 +33,26 @@ PAGED_VISUAL_META_KEYS = EXISTING_STATS_VISUAL_META_KEYS + (
     "notes",
     "hint",
 )
+PAGED_VISUAL_COMPACT_DROP_ORDER = (
+    "notes",
+    "hint",
+    "area_stats",
+    "use_counts",
+    "expanded_use_keywords",
+    "use_keywords",
+    "filter_applied",
+    "detail_fetch_mode",
+    "detail_concurrency",
+    "eligible_parcels",
+    "parcels_probed",
+    "center",
+    "radius_m",
+    "coverage",
+    "total_parcels",
+    "total",
+    "matched_count",
+    "matched_buildings",
+)
 NON_BUILDABLE_JIMOK = {
     "도", "도로",
     "천", "하천",
@@ -287,7 +307,7 @@ def paginate_feature_collection_visual_result(
         if key not in PAGED_VISUAL_META_KEYS:
             manifest_target.pop(key, None)
 
-    return json.dumps(manifest, ensure_ascii=False), page_texts
+    return _paged_manifest_text(manifest, manifest_target, max_result_bytes), page_texts
 
 
 def _feature_container(payload: Any) -> dict[str, Any] | None:
@@ -296,6 +316,29 @@ def _feature_container(payload: Any) -> dict[str, Any] | None:
     if isinstance(payload, dict) and isinstance(payload.get("features"), list):
         return payload
     return None
+
+
+def _paged_manifest_text(manifest: Any, manifest_target: dict[str, Any], max_result_bytes: int) -> str:
+    text = json.dumps(manifest, ensure_ascii=False)
+    if len(text.encode("utf-8")) <= max_result_bytes:
+        return text
+
+    for key in PAGED_VISUAL_COMPACT_DROP_ORDER:
+        manifest_target.pop(key, None)
+        text = json.dumps(manifest, ensure_ascii=False)
+        if len(text.encode("utf-8")) <= max_result_bytes:
+            return text
+
+    minimal_target = {
+        key: manifest_target[key]
+        for key in ("type", "features", "bbox", "visual_payload_paged")
+        if key in manifest_target
+    }
+    if isinstance(manifest, dict) and manifest.get("result") is manifest_target:
+        minimal: Any = {"ok": manifest.get("ok", True), "result": minimal_target}
+    else:
+        minimal = minimal_target
+    return json.dumps(minimal, ensure_ascii=False)
 
 
 def _chunk_features(features: list[Any], page_target_bytes: int) -> list[list[Any]]:

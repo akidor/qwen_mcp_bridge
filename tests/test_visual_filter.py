@@ -202,3 +202,37 @@ def test_paginate_feature_collection_visual_result_returns_manifest_and_valid_pa
     assert sum(len(page["features"]) for page in pages) == 12
     assert pages[0]["visual_payload_page"]["page_index"] == 0
     assert pages[-1]["visual_payload_page"]["page_count"] == len(pages)
+
+
+def test_paginate_feature_collection_visual_result_compacts_oversized_manifest_metadata():
+    features = [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [127.0 + (idx * 0.001), 37.0],
+            },
+            "properties": {"pnu": f"P{idx}", "address": "문정동 " + ("긴주소" * 120)},
+        }
+        for idx in range(6)
+    ]
+    raw = json.dumps({
+        "type": "FeatureCollection",
+        "matched_buildings": 6,
+        "notes": "oversized manifest metadata " * 300,
+        "features": features,
+    }, ensure_ascii=False)
+
+    manifest_text, page_texts = paginate_feature_collection_visual_result(
+        raw,
+        max_result_bytes=1_500,
+        page_target_bytes=900,
+    )
+
+    manifest = json.loads(manifest_text)
+    assert page_texts
+    assert len(manifest_text.encode("utf-8")) < 1_500
+    assert manifest["features"] == []
+    assert manifest["matched_buildings"] == 6
+    assert "notes" not in manifest
+    assert manifest["visual_payload_paged"]["feature_count"] == 6
