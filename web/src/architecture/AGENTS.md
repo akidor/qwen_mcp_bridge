@@ -74,7 +74,7 @@
 
 - `cd web && npm run test`
 - `cd web && npm run build`
-- Playwright로 `http://localhost:4173` 진입 후 `3D 구조` 버튼 클릭
+- Playwright로 `http://localhost:7474` 진입 후 `3D 구조` 버튼 클릭
 - 콘솔 error와 page error가 없는지 확인
 - 데스크톱 screenshot 저장
 - 모바일 viewport screenshot 저장

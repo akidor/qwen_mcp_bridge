@@ -68,7 +68,7 @@ npm run build
 
 Frontend 기본 포트:
 
-- Vite dev: `4173`
+- Vite dev: `7474`
 - Vite preview: `4174`
 
 ## 검증 기준
@@ -130,7 +130,7 @@ Frontend 기본 포트:
 - Playwright로 데스크톱/모바일 구조도 진입과 canvas nonblank 확인
 
 직접 확인:
-- `http://localhost:4173` 접속 후 `3D 구조` 버튼
+- `http://localhost:7474` 접속 후 `3D 구조` 버튼
 - `권장 링크 미리보기` 토글 on/off
 - `design -> polygon`, `map -> web` 권장 링크 표시
 

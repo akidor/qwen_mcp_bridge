@@ -16,7 +16,7 @@
 ```bash
 cd web
 npm install
-npm run dev    # http://localhost:4173
+npm run dev    # http://localhost:7474
 ```
 
 브릿지(`uvicorn qwen_mcp_bridge.server:app --port 8090`)가 별도로 떠있어야 함.
