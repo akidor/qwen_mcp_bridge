@@ -121,6 +121,16 @@ async def _stream_vllm_iter(
         json=payload,
         headers=headers,
     ) as resp:
+        if resp.is_error:
+            # 스트리밍 응답이라 본문이 아직 안 읽혔으므로 직접 읽어서 사유를 로깅.
+            # vLLM은 컨텍스트 초과(max_model_len) 등을 400 본문에 담아준다.
+            body = (await resp.aread()).decode("utf-8", "replace")
+            logger.error(
+                "vLLM %s 응답 (%s): %s",
+                resp.status_code,
+                f"{base_url}/chat/completions",
+                body[:1000],
+            )
         resp.raise_for_status()
         async for line in resp.aiter_lines():
             if not line:
