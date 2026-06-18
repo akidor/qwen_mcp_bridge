@@ -82,30 +82,41 @@ export default function FloatingPanel({
     );
   }
 
+  const TABS: { id: TabName; label: string }[] = [
+    { id: "chat", label: "대화" },
+    { id: "settings", label: "설정" },
+    { id: "debug", label: "디버그" },
+  ];
+
   return (
     <div className="floating-panel">
-      <div className="panel-tabs">
-        <button
-          className={`panel-tab ${activeTab === "chat" ? "active" : ""}`}
-          onClick={() => setActiveTab("chat")}
-        >
-          대화
-        </button>
-        <button
-          className={`panel-tab ${activeTab === "settings" ? "active" : ""}`}
-          onClick={() => setActiveTab("settings")}
-        >
-          설정
-        </button>
-        <button
-          className={`panel-tab ${activeTab === "debug" ? "active" : ""}`}
-          onClick={() => setActiveTab("debug")}
-        >
-          디버그
-        </button>
+      <div className="panel-header">
+        <div className="panel-brand">
+          <span className="panel-logo" aria-hidden>U</span>
+          <div className="panel-brand-text">
+            <div className="panel-title">urban-chat</div>
+            <div className="panel-sub">도시계획 AI 어시스턴트</div>
+          </div>
+        </div>
         <button className="panel-toggle" onClick={() => setCollapsed(true)} aria-label="패널 접기">
           ‹
         </button>
+      </div>
+
+      <div className="panel-tabs">
+        <div className="seg" role="tablist">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={activeTab === t.id}
+              className={`seg-btn ${activeTab === t.id ? "on" : ""}`}
+              onClick={() => setActiveTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="panel-body">

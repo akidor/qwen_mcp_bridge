@@ -2,19 +2,52 @@
 @tailwind components;
 @tailwind utilities;
 
-/* === Tokens === */
+/* === Tokens ===
+ * 단일 소스. 색/간격/라운드/그림자/모션을 토큰으로 통일한다.
+ * 컴포넌트 CSS 는 가급적 원시값(px/hex) 대신 이 변수를 쓴다. */
 :root {
-  --bg: #fafaf9;
+  /* color */
+  --bg: #f7f7f6;
   --fg: #1c1917;
   --fg-muted: #57534e;
-  --muted: rgba(28, 25, 23, 0.55);
-  --border: rgba(28, 25, 23, 0.08);
-  --panel-bg: rgba(255, 255, 255, 0.95);
-  --panel-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+  --muted: rgba(28, 25, 23, 0.5);
+  --border: rgba(28, 25, 23, 0.09);
+  --border-strong: rgba(28, 25, 23, 0.16);
+  --panel-bg: rgba(255, 255, 255, 0.78);
+  --surface: rgba(255, 255, 255, 0.66);
+  --surface-hover: rgba(28, 25, 23, 0.04);
   --accent: #7c3aed;
+  --accent-hover: #6d28d9;
   --accent-fg: #ffffff;
   --accent-soft: #ede9fe;
   --code-bg: #f5f5f4;
+
+  /* elevation */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 1px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.10), 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.16), 0 6px 16px rgba(0, 0, 0, 0.08);
+  --panel-shadow: var(--shadow-md);
+
+  /* radius */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-full: 999px;
+
+  /* spacing — 4pt 스케일 */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+
+  /* blur / motion / focus */
+  --blur: 14px;
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur: 160ms;
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 32%, transparent);
+
   color-scheme: light;
 }
 
@@ -23,16 +56,29 @@
     --bg: #0c0a09;
     --fg: #fafaf9;
     --fg-muted: #a8a29e;
-    --muted: rgba(250, 250, 249, 0.55);
-    --border: rgba(255, 255, 255, 0.08);
-    --panel-bg: rgba(28, 25, 23, 0.92);
-    --panel-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    --muted: rgba(250, 250, 249, 0.5);
+    --border: rgba(255, 255, 255, 0.09);
+    --border-strong: rgba(255, 255, 255, 0.18);
+    --panel-bg: rgba(24, 22, 20, 0.78);
+    --surface: rgba(255, 255, 255, 0.05);
+    --surface-hover: rgba(255, 255, 255, 0.07);
     --accent: #a78bfa;
+    --accent-hover: #c4b5fd;
     --accent-fg: #1c1917;
     --accent-soft: rgba(167, 139, 250, 0.16);
     --code-bg: rgba(255, 255, 255, 0.06);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.6), 0 6px 16px rgba(0, 0, 0, 0.4);
+
     color-scheme: dark;
   }
+}
+
+/* 접근성: 모션 최소화 선호 시 트랜지션 제거 */
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
 }
 
 * { box-sizing: border-box; }
@@ -50,69 +96,133 @@ body {
 input, textarea, button, select {
   font-family: inherit;
 }
+/* 키보드 포커스에만 링 표시 (마우스 클릭 시엔 안 보임) */
+:where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--r-sm);
+}
 
 /* === Floating panel === */
 .floating-panel {
   position: absolute;
-  top: 14px;
-  right: 14px;
+  top: var(--s-4);
+  right: var(--s-4);
   width: 380px;
-  max-height: calc(100vh - 28px);
+  max-height: calc(100vh - var(--s-4) * 2);
   background: var(--panel-bg);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 14px;
+  backdrop-filter: blur(var(--blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.4);
+  border-radius: var(--r-lg);
   border: 1px solid var(--border);
   box-shadow: var(--panel-shadow);
   z-index: 10;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: width var(--dur) var(--ease), height var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
 }
 .floating-panel.collapsed {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: var(--shadow-sm);
 }
 
-.panel-tabs {
+/* 브랜드 헤더 */
+.panel-header {
   display: flex;
-  border-bottom: 1px solid var(--border);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s-3) var(--s-3) var(--s-2) var(--s-4);
   flex-shrink: 0;
 }
-.panel-tab {
+.panel-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.panel-logo {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #ec4899));
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  box-shadow: var(--shadow-sm);
+}
+.panel-brand-text { min-width: 0; }
+.panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+.panel-sub {
+  font-size: 10.5px;
+  color: var(--muted);
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 탭 — 세그먼트 컨트롤 */
+.panel-tabs {
+  padding: 0 var(--s-3) var(--s-3);
+  flex-shrink: 0;
+}
+.seg {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.seg-btn {
   flex: 1;
-  padding: 10px 0;
+  padding: 7px 0;
   background: none;
   border: none;
+  border-radius: calc(var(--r-md) - 4px);
   font-size: 12px;
+  font-weight: 500;
   color: var(--fg-muted);
   cursor: pointer;
-  position: relative;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
 }
-.panel-tab.active {
+.seg-btn:hover { color: var(--fg); }
+.seg-btn.on {
+  background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
 }
-.panel-tab.active::after {
-  content: "";
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--accent);
-}
 .panel-toggle {
-  width: 36px;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
   background: none;
   border: none;
-  border-left: 1px solid var(--border);
-  font-size: 14px;
+  border-radius: var(--r-sm);
+  font-size: 16px;
   color: var(--fg-muted);
   cursor: pointer;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.panel-toggle:hover {
+  color: var(--fg);
+  background: var(--surface-hover);
 }
 .floating-panel.collapsed .panel-toggle {
   border-left: none;
@@ -640,26 +750,43 @@ input, textarea, button, select {
 }
 
 /* === Layer Panel === */
-.layer-panel-button {
+/* 좌측 지도 컨트롤 — 레이어 / 3D 구조 (공통 글래스 버튼, 줌 컨트롤 아래 정렬) */
+.layer-panel-button,
+.architecture-open-button {
   position: absolute;
-  top: 100px;
-  left: 14px;
-  z-index: 10;
-  width: 36px;
+  left: 12px;
+  z-index: 24;
   height: 36px;
-  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  min-width: 96px;
+  border-radius: var(--r-md);
   border: 1px solid var(--border);
   background: var(--panel-bg);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  backdrop-filter: blur(var(--blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.4);
+  box-shadow: var(--shadow-md);
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   cursor: pointer;
-  font-size: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease),
+    transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
-.layer-panel-button:hover { border-color: var(--accent); }
+.architecture-open-button { top: 116px; }
+.layer-panel-button { top: 160px; }
+.layer-panel-button:hover,
+.architecture-open-button:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+}
+.layer-panel-button svg,
+.architecture-open-button svg { width: 15px; height: 15px; flex-shrink: 0; }
 
 .layer-panel {
   position: absolute;
@@ -2002,27 +2129,8 @@ input, textarea, button, select {
 }
 
 /* === Architecture 3D view === */
-.architecture-open-button {
-  position: absolute;
-  left: 12px;
-  top: 82px;
-  z-index: 24;
-  height: 34px;
-  min-width: 76px;
-  padding: 0 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(17, 24, 39, 0.14);
-  background: rgba(255, 255, 255, 0.92);
-  color: #111827;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
-}
-.architecture-open-button:hover {
-  border-color: rgba(14, 165, 233, 0.55);
-  background: #f8fafc;
-}
+/* .architecture-open-button 의 시각 스타일은 위 'Layer Panel' 공통 블록으로 통합됨
+ * (레이어 버튼과 동일한 글래스 컨트롤 + 토큰 기반). 여기 별도 정의 제거. */
 .architecture-page {
   position: fixed;
   inset: 0;
