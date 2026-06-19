@@ -756,12 +756,12 @@ input, textarea, button, select {
   position: absolute;
   left: 12px;
   z-index: 24;
-  height: 36px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 0 12px;
-  min-width: 96px;
+  gap: 6px;
+  padding: 0 10px;
+  min-width: 80px;
   border-radius: var(--r-md);
   border: 1px solid var(--border);
   background: var(--panel-bg);
@@ -1150,6 +1150,49 @@ input, textarea, button, select {
   display: block;
 }
 
+/* === 데스크톱 일체형 컴포저: 입력 + 전송을 하나의 pill 로 === */
+.composer:not(.mobile-composer) .composer-input-row {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  padding: 4px 4px 4px 6px;
+  gap: 4px;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.composer:not(.mobile-composer) .composer-input-row:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+.composer:not(.mobile-composer) .composer-input-row > textarea {
+  border: none;
+  background: transparent;
+  padding: 6px 4px;
+}
+.composer:not(.mobile-composer) .composer-input-row > textarea:focus {
+  outline: none;
+  border-color: transparent;
+}
+/* 인라인 전송 버튼 (데스크톱) */
+.composer-send {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: var(--accent-fg);
+  cursor: pointer;
+  transition: filter var(--dur) var(--ease), transform var(--dur) var(--ease),
+    background var(--dur) var(--ease), opacity var(--dur) var(--ease);
+}
+.composer-send svg { width: 16px; height: 16px; display: block; }
+.composer-send:hover:not(:disabled) { filter: brightness(0.93); }
+.composer-send:active:not(:disabled) { transform: scale(0.94); }
+.composer-send:disabled { opacity: 0.38; cursor: not-allowed; }
+
 /* === Parcel cards (도구 결과에서 추출한 클릭형 필지 리스트, 가로 carousel) === */
 .parcel-card-list {
   list-style: none;
@@ -1524,29 +1567,34 @@ input, textarea, button, select {
   color: var(--accent);
 }
 
-/* === P17 Avatar layout === */
+/* === 챗 메시지 — 정갈한 버블 + 브랜드 아바타 === */
 .message {
   flex-direction: row !important;
   align-items: flex-start;
-  gap: 12px;
+  gap: 10px;
 }
 .message-avatar {
   flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 14px;
+  font-weight: 800;
   line-height: 1;
   user-select: none;
 }
+/* 어시스턴트 = urban 브랜드 마크 (헤더 로고와 같은 그라데이션 패밀리) */
 .message.assistant .message-avatar {
-  background: rgba(124, 58, 237, 0.12);
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #ec4899));
+  color: #fff;
+  box-shadow: var(--shadow-sm);
 }
-.message.user .message-avatar {
-  background: rgba(28, 25, 23, 0.06);
+.message.system .message-avatar {
+  background: var(--surface-hover);
+  font-size: 15px;
 }
 .message-body {
   flex: 1;
@@ -1554,6 +1602,38 @@ input, textarea, button, select {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+/* 어시스턴트 라벨: 대문자 ROLE → 소문자 브랜드 네임 */
+.message.assistant .message-role {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--accent);
+}
+
+/* 사용자 메시지: 우측 정렬 accent 버블, 아바타·라벨 숨김 */
+.message.user {
+  flex-direction: row-reverse !important;
+  justify-content: flex-end;
+}
+.message.user .message-avatar { display: none; }
+.message.user .message-role { display: none; }
+.message.user .message-body {
+  flex: 0 1 auto;
+  max-width: 84%;
+  align-items: flex-end;
+}
+.message.user .message-content {
+  background: var(--accent-soft);
+  color: var(--fg);
+  padding: 8px 12px;
+  border-radius: var(--r-md);
+  border-bottom-right-radius: var(--s-1);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* === P17 Tool collapsed badge === */

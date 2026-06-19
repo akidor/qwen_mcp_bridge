@@ -508,6 +508,21 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
           </button>
         )
       )}
+      {mode !== "mobile" && (
+        isSending ? (
+          <button type="button" className="composer-send" onClick={handleAbort} title="중단" aria-label="중단">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="6" y="6" width="12" height="12" rx="2" />
+            </svg>
+          </button>
+        ) : (
+          <button type="submit" className="composer-send" disabled={!input.trim()} title="전송" aria-label="전송">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M2.5 11.4 21 3.2c.7-.3 1.5.4 1.2 1.2l-8.2 18.5c-.3.8-1.5.8-1.7-.1l-2.1-7.4-7.4-2.1c-.9-.2-.9-1.4-.3-1.9z" />
+            </svg>
+          </button>
+        )
+      )}
       </div>
       {autocompleteOpen && autocompleteItems.length > 0 && (
         <ul className="slash-autocomplete">
@@ -529,17 +544,7 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
       )}
       {mode !== "mobile" && (
         <div className="composer-row">
-          <span className="composer-hint">Enter 전송 · Shift+Enter 줄바꿈</span>
-          <div style={{ display: "flex", gap: 8 }}>
-            {isSending ? (
-              <button type="button" className="secondary-button" onClick={handleAbort}>
-                중단
-              </button>
-            ) : null}
-            <button type="submit" className="primary-button" disabled={isSending}>
-              {isSending ? "..." : "전송"}
-            </button>
-          </div>
+          <span className="composer-hint">Enter 전송 · Shift+Enter 줄바꿈{isSending ? " · 전송 버튼으로 중단" : ""}</span>
         </div>
       )}
     </form>
@@ -552,10 +557,10 @@ export default function ChatTab({ model, systemPrompt, disableThinking, onLastCh
         {messages.map((message, index) => (
           <article key={`${message.role}-${index}`} className={`message ${message.role}`}>
             <div className="message-avatar" aria-hidden="true">
-              {message.role === "assistant" ? "🤖" : message.role === "user" ? "👤" : "⚙️"}
+              {message.role === "assistant" ? "U" : message.role === "user" ? "" : "⚙️"}
             </div>
             <div className="message-body">
-              <p className="message-role">{message.role}</p>
+              <p className="message-role">{message.role === "assistant" ? "urban" : message.role}</p>
               {message.reasoning ? (
                 <details className="reasoning-block">
                   <summary>thinking ({message.reasoning.length} chars)</summary>
