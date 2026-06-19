@@ -348,6 +348,23 @@ export default function App() {
     </button>
   );
 
+  const docButton = (
+    <button
+      className="doc-open-button"
+      onClick={() => window.open("/ARCHITECTURE.html", "_blank", "noopener,noreferrer")}
+      aria-label="아키텍처 문서 열기 (새 탭)"
+      title="아키텍처 문서"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+        <path d="M14 2v6h6" />
+        <path d="M9 13h6" />
+        <path d="M9 17h6" />
+      </svg>
+      아키텍처
+    </button>
+  );
+
   if (isMobile) {
     const layerSlot = (
       <LayerPanelBody
@@ -458,7 +475,10 @@ export default function App() {
   // 데스크톱 (기존)
   return (
     <>
-      {architectureButton}
+      <div className="map-left-stack">
+        {architectureButton}
+        {docButton}
+      </div>
       <MapView
         basemap={basemap}
         onReady={(map) => setMapInstance(map)}

@@ -750,9 +750,10 @@ input, textarea, button, select {
 }
 
 /* === Layer Panel === */
-/* 좌측 지도 컨트롤 — 레이어 / 3D 구조 (공통 글래스 버튼, 줌 컨트롤 아래 정렬) */
+/* 좌측 지도 컨트롤 — 레이어 / 3D구조 / 아키텍처 (공통 글래스 버튼, 줌 컨트롤 아래 정렬) */
 .layer-panel-button,
-.architecture-open-button {
+.architecture-open-button,
+.doc-open-button {
   position: absolute;
   left: 12px;
   z-index: 24;
@@ -776,17 +777,34 @@ input, textarea, button, select {
   transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease),
     transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
+/* 모바일: architecture 버튼이 단독 플로팅(좌상단). 데스크톱은 .map-left-stack 가 위치 제어. */
 .architecture-open-button { top: 116px; }
-.layer-panel-button { top: 160px; }
+.layer-panel-button { top: 116px; }
 .layer-panel-button:hover,
-.architecture-open-button:hover {
+.architecture-open-button:hover,
+.doc-open-button:hover {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
   color: var(--accent);
   transform: translateY(-1px);
   box-shadow: var(--shadow-lg);
 }
 .layer-panel-button svg,
-.architecture-open-button svg { width: 15px; height: 15px; flex-shrink: 0; }
+.architecture-open-button svg,
+.doc-open-button svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+/* 데스크톱 좌측 버튼 스택 — 레이어(별도, top:116) 아래로 3D구조 / 아키텍처 세로 정렬.
+ * 자식 버튼의 공통 absolute 좌표를 static 으로 무력화해 DOM 순서대로 쌓는다. */
+.map-left-stack {
+  position: absolute;
+  top: 158px;
+  left: 12px;
+  z-index: 24;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.map-left-stack > button { position: static; }
 
 .layer-panel {
   position: absolute;
