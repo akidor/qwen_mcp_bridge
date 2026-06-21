@@ -377,7 +377,7 @@
       <strong>로컬 vLLM</strong>이 자연어로 도시계획 데이터를 다루는 <strong>3-레포 파이프라인</strong>입니다.
       사용자가 브라우저 채팅 UI에서 질의하면 <code>qwen_mcp_bridge</code>가 vLLM과
       <code>urban_mcp</code>(8개 stdio MCP 도메인) 사이를 중계하고, <code>urban_mcp</code>는
-      HTTP로 <code>northside_threejs</code>의 polygon 백엔드(:7469)와 등시선 백엔드(:2529)를
+      HTTP로 <code>northside_threejs</code>의 polygon 백엔드(:7469)와 등시선 백엔드를
       호출해 필지·규제·생성·분석 데이터를 PostgreSQL 16 + PostGIS에서 끌어옵니다.
     </p>
     <div class="hero-meta">
@@ -408,7 +408,7 @@
           <div><h2>전체 토폴로지</h2><p>UI → 브릿지 → MCP → 백엔드 → DB 까지의 데이터 경로</p></div>
         </div>
 
-        <div class="topo" role="img" aria-label="데이터 흐름: 브라우저 채팅 UI(:7474)가 /api 프록시로 qwen_mcp_bridge(:8090)에 연결. 브릿지는 OpenAI 호환 호출로 vLLM(:8016)을, stdio spawn으로 urban_mcp를 호출. urban_mcp는 HTTP로 northside_threejs polygon 백엔드(:7469)와 등시선 백엔드(:2529)를 호출하고, polygon 백엔드는 psycopg2로 PostgreSQL 16 + PostGIS에 접속하며 GeoServer WMS·MARTIN 타일 서버에 의존.">
+        <div class="topo" role="img" aria-label="데이터 흐름: 브라우저 채팅 UI(:7474)가 /api 프록시로 qwen_mcp_bridge(:8090)에 연결. 브릿지는 OpenAI 호환 호출로 vLLM(:8016)을, stdio spawn으로 urban_mcp를 호출. urban_mcp는 HTTP로 northside_threejs polygon 백엔드(:7469)와 등시선 백엔드를 호출하고, polygon 백엔드는 psycopg2로 PostgreSQL 16 + PostGIS에 접속하며 GeoServer WMS·MARTIN 타일 서버에 의존.">
           <!-- UI -->
           <div class="level"><div class="node spine">
             <div class="role">browser ui</div><div class="name">브라우저 채팅 UI</div>
@@ -442,7 +442,7 @@
               <div class="harm"><span class="blbl">HTTP</span></div>
               <div class="node ext">
                 <div class="role">external · 등시선</div><div class="name">등시선 백엔드</div>
-                <div class="sub">175.208.134.144:2529</div>
+                <div class="sub">(주소 비공개)</div>
               </div>
             </div></div>
           </div>
@@ -467,7 +467,7 @@
           <!-- DB -->
           <div class="level"><div class="node db spine">
             <div class="role">datastore</div><div class="name">PostgreSQL 16 + PostGIS</div>
-            <div class="sub">polygen_app @ 10.20.0.150:35432</div>
+            <div class="sub">(주소 비공개)</div>
           </div></div>
 
           <div class="legend">
@@ -507,7 +507,7 @@
           <div class="card c-mcp">
             <div class="tag">./urban_mcp/ · 도구 계층</div>
             <h3><span class="glyph">◆</span> urban_mcp</h3>
-            <p class="what">polygon(:7469)·등시선(:2529) 백엔드를 8개 도메인 stdio MCP 서버로 감싸는 어댑터</p>
+            <p class="what">polygon(:7469)·등시선 백엔드를 8개 도메인 stdio MCP 서버로 감싸는 어댑터</p>
             <p class="desc">
               브릿지가 질의 처리 시 <code>uv --directory &lt;urban_mcp_root&gt; run python -m urban_mcp_&lt;domain&gt;</code>
               명령으로 각 도메인 프로세스를 spawn합니다. <code>shared/</code> 패키지가 HTTP 클라이언트
@@ -528,7 +528,7 @@
             <p class="desc">
               <code>polygon_generator/</code> 패키지가 셋백·정북사선·도로감지·지형 알고리즘으로 2D/3D 매스를
               산출하고, <code>whatif/</code> 하위 18개 서브도메인이 규제 시뮬레이션을 담당합니다. urban_mcp가
-              HTTP로 이 백엔드를 호출하며, 외부 인터페이스로 PostgreSQL 16 + PostGIS(polygen_app)와
+              HTTP로 이 백엔드를 호출하며, 외부 인터페이스로 PostgreSQL 16 + PostGIS와
               GeoServer WMS, MARTIN 타일 서버에 의존합니다.
             </p>
             <div class="wires">
@@ -604,9 +604,9 @@
               <tr><td>vLLM</td><td class="port">8016</td><td class="repo">(외부 서비스)<span class="ext-tag">EXT</span></td><td>—</td></tr>
               <tr><td>polygon 백엔드</td><td class="port">7469</td><td class="repo">northside_threejs</td><td>—</td></tr>
               <tr><td>northside 프론트</td><td class="port">6974</td><td class="repo">northside_threejs</td><td>Next.js 시각화</td></tr>
-              <tr><td>등시선 백엔드</td><td class="port">2529</td><td class="repo">175.208.134.144<span class="ext-tag">EXT</span></td><td>외부</td></tr>
+              <tr><td>등시선 백엔드</td><td class="port">—</td><td class="repo">(주소 비공개)<span class="ext-tag">EXT</span></td><td>외부</td></tr>
               <tr><td>urban_mcp</td><td class="port">stdio</td><td class="repo">akidor/urban_mcp</td><td>포트 없음</td></tr>
-              <tr><td>PostgreSQL + PostGIS</td><td class="port">35432</td><td class="repo">10.20.0.150<span class="ext-tag">EXT</span></td><td>DB: polygen_app</td></tr>
+              <tr><td>PostgreSQL + PostGIS</td><td class="port">—</td><td class="repo">(주소 비공개)<span class="ext-tag">EXT</span></td><td>DB: (비공개)</td></tr>
             </tbody>
           </table>
         </div>
