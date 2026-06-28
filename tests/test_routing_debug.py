@@ -56,3 +56,12 @@ def test_routing_debug_allows_current_parcel_pnu_when_user_explicitly_asks():
 
     assert debug["anchor_type"] == "current_parcel"
     assert debug["current_parcel_pnu"] == "1168010100107380001"
+
+
+def test_routing_debug_direct_address_stats_no_nearby():
+    debug = build_routing_debug([
+        {"role": "user", "content": "강남구 역삼동 123-45 건물통계 차트 보여줘"},
+    ])
+    assert debug["intent"] == "existing_building_stats"
+    assert debug["bucket"] == "기존 건축물 통계 조회"
+    assert "analyze__existing_building_statistics" in debug["required_chain"]

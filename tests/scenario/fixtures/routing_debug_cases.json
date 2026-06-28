@@ -185,5 +185,21 @@
         "required": false
       }
     }
+  },
+  {
+    "name": "existing_building_stats_address_direct_no_nearby",
+    "messages": [
+      { "role": "user", "content": "강남구 역삼동 123-45 건물통계 차트 보여줘" }
+    ],
+    "expected": {
+      "intent": "existing_building_stats",
+      "bucket": "기존 건축물 통계 조회",
+      "anchor": { "type": "address", "text": "강남구 역삼동 123-45" },
+      "required_chain": {
+        "contains": ["locate__search_address", "locate__get_parcel", "analyze__existing_building_statistics"],
+        "not_contains": ["analyze__find_existing_buildings", "analyze__find_parcels"]
+      },
+      "visual": { "suppress": "intermediate_parcel_candidates", "required": false }
+    }
   }
 ]

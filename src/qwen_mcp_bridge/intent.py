@@ -19,6 +19,7 @@ from qwen_mcp_bridge.query_policy import (
     _NEARBY_RE,
     _RECENT_CONTEXT_RE,
     _RISK_RE as _QP_RISK_RE,
+    _STATS_STRONG_RE,
     _STATS_RE,
     _extract_address_anchor,
     _extract_existing_use_filter,
@@ -99,6 +100,10 @@ def classify_intent(
     if _RISK_RE.search(text):
         return "risk_check"
 
+    # 지도-클릭: 필지 컨텍스트 + 강한 통계 명사 → DETAIL보다 우선 (주소 없을 때).
+    if has_current_parcel_context and _STATS_STRONG_RE.search(text) and not _extract_address_anchor(text):
+        return "existing_building_stats"
+
     is_current_parcel = bool(
         _CURRENT_PARCEL_RE.search(text)
         or (has_current_parcel_context and _RECENT_CONTEXT_RE.search(text))
@@ -121,9 +126,15 @@ def classify_intent(
                 return "existing_building_stats"
             return "nearby_context"
         # 주소 anchor 있고 nearby 없을 때:
+        # 강한 통계 명사는 DETAIL/DISPLAY보다 우선.
+        if _STATS_STRONG_RE.search(text):
+            return "existing_building_stats"
         # "분석/상세/검토/가능해" 등 분석 의도가 있으면 parcel_detail (locate_show가 아님).
         if _DETAIL_RE.search(text):
             return "parcel_detail"
+        # 약한 통계 포함 — DISPLAY보다 우선.
+        if _STATS_RE.search(text):
+            return "existing_building_stats"
         if _DISPLAY_RE.search(text):
             return "locate_show"
         # 주소만 단독 — 위치 보여달라는 의도와 동의어로 처리.
@@ -134,6 +145,10 @@ def classify_intent(
         if _STATS_RE.search(text):
             return "existing_building_stats"
         return "nearby_context"
+
+    # 지도-클릭(약한 통계 포함): 필지 컨텍스트 + 통계 의도 → existing_building_stats.
+    if has_current_parcel_context and _STATS_RE.search(text) and not _extract_address_anchor(text):
+        return "existing_building_stats"
 
     if _has_previous_existing_context(messages):
         if _extract_existing_use_filter(text) or _is_visualize_followup(text):

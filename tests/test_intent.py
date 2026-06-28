@@ -134,3 +134,27 @@ def test_empty_or_generic_is_general():
     assert classify_intent([]) == "general"
     assert classify_intent(_user("안녕")) == "general"
     assert classify_intent(_user("도시계획이 뭐야?")) == "general"
+
+
+def test_direct_address_stats_chart_is_existing_building_stats():
+    assert classify_intent(_user("강남구 역삼동 123-45 건물통계 차트 보여줘")) == "existing_building_stats"
+    assert classify_intent(_user("역삼동 123-45 건물통계 분석해줘")) == "existing_building_stats"
+
+
+def test_direct_address_soft_summary_stays_parcel_detail():
+    assert classify_intent(_user("역삼동 123-45 분석 요약해줘")) == "parcel_detail"
+
+
+def test_map_click_stats_is_existing_building_stats():
+    assert (
+        classify_intent(_user("건물통계 차트 보여줘"), has_current_parcel_context=True)
+        == "existing_building_stats"
+    )
+
+
+def test_map_click_non_stats_is_not_stats():
+    # '분석해줘'(deictic·STATS 없음) → 통계 아님 (범위 최소).
+    assert (
+        classify_intent(_user("분석해줘"), has_current_parcel_context=True)
+        != "existing_building_stats"
+    )
