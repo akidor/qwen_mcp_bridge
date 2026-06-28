@@ -432,6 +432,13 @@ def _existing_stats_hint(text: str, anchor_type: str, anchor_text: str, radius: 
         "bucket=기존 건축물 통계 조회",
         f"anchor_type={anchor_type}",
         f"anchor_text={anchor_text}",
+    ]
+    if anchor_type == "address":
+        # 지번/도로명이 명시됐으므로 역명·시설명으로 보정 금지 (다른 주소 힌트와 동일 가드).
+        lines.append(
+            "locate__search_facility 금지: 지번/번지/도로명 주소가 명시됐으므로 역명·시설명으로 보정하지 말 것."
+        )
+    lines += [
         f"required_chain={chain}",
         f"radius_m={radius}",
         "visual_suppress=intermediate_parcel_candidates",

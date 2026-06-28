@@ -426,3 +426,25 @@ def test_routing_hint_map_click_non_stats_is_not_stats():
         current_parcel={"pnu": "1168010100101230045", "centroid": {"lng": 127.03, "lat": 37.49}},
     )
     assert hint is None or "기존 건축물 통계 조회" not in hint
+
+
+def test_routing_hint_address_stats_forbids_facility_search():
+    """주소-stats 힌트는 search_facility 금지 가드를 포함 (역명·시설명 보정 방지)."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "강남구 역삼동 123-45 건물통계 차트 보여줘"},
+    ])
+    assert hint is not None
+    assert "bucket=기존 건축물 통계 조회" in hint
+    assert "locate__search_facility 금지" in hint
+
+
+def test_routing_hint_facility_stats_still_allows_facility_search():
+    """시설-stats 힌트는 search_facility를 정당하게 사용 — 금지 가드 없어야 함."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "양재역 근처 다세대 통계 리스트"},
+    ])
+    assert hint is not None
+    assert "bucket=기존 건축물 통계 조회" in hint
+    assert "anchor_type=facility" in hint
+    assert "locate__search_facility ->" in hint  # 체인에 실제 사용
+    assert "locate__search_facility 금지" not in hint
