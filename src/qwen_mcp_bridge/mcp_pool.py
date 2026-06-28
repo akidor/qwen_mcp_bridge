@@ -47,6 +47,17 @@ def _coerce_args(args: dict, schema: dict | None) -> dict:
             if coerced_array is not None:
                 out[key] = coerced_array
                 continue
+        if "object" in allowed:
+            # Qwen이 중첩 object 인자(opts 등)를 JSON 문자열로 직렬화해 보낼 때 dict로 복원.
+            stripped = value.strip()
+            if stripped.startswith("{"):
+                try:
+                    parsed = json.loads(stripped)
+                except json.JSONDecodeError:
+                    parsed = None
+                if isinstance(parsed, dict):
+                    out[key] = parsed
+                    continue
         if "integer" in allowed:
             try:
                 out[key] = int(value)

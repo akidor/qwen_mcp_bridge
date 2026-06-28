@@ -87,3 +87,26 @@ def test_coerce_args_parses_hint_style_array_string_for_array_schema():
     )
 
     assert coerced["use_keywords"] == ["다세대주택", "다가구주택", "공동주택", "연립주택"]
+
+
+def test_coerce_args_parses_json_object_string_for_object_schema():
+    schema = {"properties": {"opts": {"type": ["object", "null"]}}}
+    coerced = _coerce_args(
+        {"pnu": "1168010100107380001", "opts": '{"height_max": 12, "far_max": 250, "use_category": "공동주택"}'},
+        schema,
+    )
+    assert coerced["opts"] == {"height_max": 12, "far_max": 250, "use_category": "공동주택"}
+    assert coerced["pnu"] == "1168010100107380001"  # string 파라미터 불변
+
+
+def test_coerce_args_object_keeps_non_json_string():
+    schema = {"properties": {"opts": {"type": ["object", "null"]}}}
+    coerced = _coerce_args({"opts": "그냥 텍스트"}, schema)
+    assert coerced["opts"] == "그냥 텍스트"  # 파싱 불가 → 원본 유지
+
+
+def test_coerce_args_object_ignores_json_array_for_object_type():
+    # object 타입인데 배열 문자열이 오면 dict 아니므로 원본 유지
+    schema = {"properties": {"opts": {"type": "object"}}}
+    coerced = _coerce_args({"opts": "[1,2,3]"}, schema)
+    assert coerced["opts"] == "[1,2,3]"
