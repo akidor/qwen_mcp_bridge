@@ -11,7 +11,7 @@ _DOMAIN_GUIDE = """\
 - analyze__: 통계·분포·필지검색 (land_composition, population_summary, parcel_aggregation, find_parcels, ...)
 - simulate__: 그림자·토공 (shadow_analysis, earthwork_volume, planning_precheck)
 - estimate__: 비용·세대 (cost_detail, parking_estimate, unit_estimate, ...)
-- design__: 매스·시나리오 (generate_volume, scenario_*, unit_layout, ...)
+- design__: 매스·시나리오 (generate_scene[사용자 대면 매스/3D 기본], generate_volume[내부 부피], scenario_*, unit_layout, ...)
 - export__: 산출물 (export_pdf, export_dxf, export_3d, history_*)
 """
 
@@ -72,6 +72,9 @@ def build_system_prompt(now: datetime | None = None) -> str:
     - 면적 ±15% 매칭 후보가 너무 많을 때는 용도지역(주거지역)으로 1차 필터링한 결과만 보여줌.
     - 빈땅(건물 유무) 필터는 도구 미지원 — "사용자가 직접 위성 이미지로 확인 권장" 안내.
     - 사용자가 후속으로 "이 부지 분석" 같이 단일 부지를 지목하면 `simulate.shadow_analysis` / `estimate.cost_detail` / `design.generate_scene` chain.
+    - **매스 생성·3D 표시 = `design__generate_scene`(기본)**: 사용자가 "매스/건물/N층/신축 건물"을 **생성**하거나 "3D/장면/입체로 보여줘"라고 하면 `design__generate_scene(pnu)`를 호출한다. scene_data로 3D 뷰어에 매스가 렌더되고 후보 카드가 자동 표시되며, 카드를 누르면 그 매스가 3D로 열린다.
+    - `design__generate_volume`은 3D 표시가 불필요한 내부 부피 계산용으로만 쓴다(사용자가 매스를 보길 원하면 generate_scene).
+    - 그림자·공사비·세대 후속은 generate 결과 없이 `{{pnu, candidate, opts}}`로 직접 호출할 수 있다(generate_volume 강제 아님).
 16. **지도 UI 컨트롤 → ui__* 도구**:
     - 사용자가 "켜/꺼/배경/위성/3D/그리기/이동/clear" 같은 UI 컨트롤 의도를 말하면 즉시 ui__* 도구 호출.
     - 예: "용도지역 레이어 켜줘" → `ui__toggle_wms_layer(label="용도지역", on=true)`
