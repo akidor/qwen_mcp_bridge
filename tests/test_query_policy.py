@@ -341,3 +341,25 @@ def test_routing_hint_followup_visualizes_previous_filtered_result():
     assert "analyze__find_existing_buildings" in hint
     assert "probe_n=400" in hint
     assert "top_n=100" in hint
+
+
+def test_stats_strong_soft_partition_preserves_union():
+    from qwen_mcp_bridge.query_policy import _STATS_STRONG_RE, _STATS_SOFT_RE, _STATS_RE
+
+    # 강: 명백한 수량·분포 명사
+    for w in ["통계", "통계치", "분포", "밀도", "집계", "개수", "카운트", "수량",
+              "몇 개", "몇 곳", "몇 동", "몇 필지", "총 몇", "총량", "비율", "비중",
+              "평균", "중앙값", "합계"]:
+        assert _STATS_STRONG_RE.search(w), f"strong이 매칭해야: {w}"
+        assert not _STATS_SOFT_RE.search(w), f"soft가 매칭하면 안됨: {w}"
+
+    # 약: 검토/요약 맥락에도 섞이는 단어
+    for w in ["현황", "요약", "구성", "얼마나 있어"]:
+        assert _STATS_SOFT_RE.search(w), f"soft가 매칭해야: {w}"
+        assert not _STATS_STRONG_RE.search(w), f"strong이 매칭하면 안됨: {w}"
+
+    # 합집합은 기존 _STATS_RE 키워드 전부 보존
+    for w in ["통계치", "통계", "분포", "현황", "몇 개", "몇 곳", "몇 동", "몇 필지",
+              "개수", "비율", "비중", "집계", "요약", "평균", "중앙값", "합계",
+              "총 몇", "총량", "수량", "카운트", "얼마나 있어", "밀도", "구성"]:
+        assert _STATS_RE.search(w), f"union이 매칭해야: {w}"
