@@ -394,3 +394,35 @@ def test_routing_hint_soft_summary_stays_parcel_detail():
     assert hint is not None
     assert "bucket=단일 필지 상세 검토" in hint
     assert "기존 건축물 통계 조회" not in hint
+
+
+def test_routing_hint_map_click_stats_uses_centroid_one_call():
+    """필지 클릭(current_parcel) + '건물통계 차트' (deictic·주변 없음) → centroid 1콜 통계."""
+    hint = build_routing_hint(
+        [{"role": "user", "content": "건물통계 차트 보여줘"}],
+        current_parcel={"pnu": "1168010100101230045", "centroid": {"lng": 127.03, "lat": 37.49}},
+    )
+    assert hint is not None
+    assert "bucket=기존 건축물 통계 조회" in hint
+    assert "anchor_type=current_parcel" in hint
+    assert "required_chain=current_parcel_centroid -> analyze__existing_building_statistics" in hint
+
+
+def test_routing_hint_map_click_stats_without_centroid_uses_get_parcel():
+    """centroid 없으면 pnu -> get_parcel -> statistics (2콜)."""
+    hint = build_routing_hint(
+        [{"role": "user", "content": "건물통계 차트 보여줘"}],
+        current_parcel={"pnu": "1168010100101230045"},
+    )
+    assert hint is not None
+    assert "bucket=기존 건축물 통계 조회" in hint
+    assert "current_parcel_pnu -> locate__get_parcel -> analyze__existing_building_statistics" in hint
+
+
+def test_routing_hint_map_click_non_stats_is_not_stats():
+    """필지 클릭 + '분석해줘'(STATS 없음, deictic 없음) → 통계로 가지 않음(범위 최소)."""
+    hint = build_routing_hint(
+        [{"role": "user", "content": "분석해줘"}],
+        current_parcel={"pnu": "1168010100101230045", "centroid": {"lng": 127.03, "lat": 37.49}},
+    )
+    assert hint is None or "기존 건축물 통계 조회" not in hint

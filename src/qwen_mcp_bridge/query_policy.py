@@ -97,10 +97,17 @@ def build_routing_hint(
             return _address_display_hint(address)
         return _address_anchor_hint(address)
 
-    # address 없이도 current_parcel 분기 — risk/detail이 nearby보다 우선.
+    # address 없이도 current_parcel 분기 — risk가 최우선(기존, deictic 필요).
     if _is_current_parcel_reference(text, current_context):
         if _RISK_RE.search(text):
             return _current_parcel_risk_hint(text, current_context)
+
+    # 지도-클릭 흐름: 필지 컨텍스트 + 강한 통계 명사 → deictic·nearby 없이도 통계 (DETAIL보다 우선).
+    if current_context and _STATS_STRONG_RE.search(text):
+        return _current_parcel_stats_hint(text, current_context)
+
+    # detail/feasibility (기존, deictic 필요, nearby 아닐 때).
+    if _is_current_parcel_reference(text, current_context):
         if _DETAIL_RE.search(text) or _FEASIBILITY_RE.search(text):
             if not _NEARBY_RE.search(text):
                 return _current_parcel_detail_hint(text, current_context)
@@ -110,6 +117,10 @@ def build_routing_hint(
         if _STATS_RE.search(text):
             return _current_parcel_stats_hint(text, current_context)
         return _current_parcel_hint(current_context)
+
+    # 약한 통계 포함 — 필지 컨텍스트 있으면 deictic 없어도 통계 (detail/nearby 뒤).
+    if current_context and _STATS_RE.search(text):
+        return _current_parcel_stats_hint(text, current_context)
 
     if _is_current_parcel_reference(text, current_context) and current_context:
         return _current_parcel_hint(current_context)
