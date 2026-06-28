@@ -363,3 +363,34 @@ def test_stats_strong_soft_partition_preserves_union():
               "개수", "비율", "비중", "집계", "요약", "평균", "중앙값", "합계",
               "총 몇", "총량", "수량", "카운트", "얼마나 있어", "밀도", "구성"]:
         assert _STATS_RE.search(w), f"union이 매칭해야: {w}"
+
+
+def test_routing_hint_direct_address_stats_chart_routes_to_statistics():
+    """'역삼동 123-45 건물통계 차트 보여줘' (주변 없음) → 통계 도구."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "강남구 역삼동 123-45 건물통계 차트 보여줘"},
+    ])
+    assert hint is not None
+    assert "bucket=기존 건축물 통계 조회" in hint
+    assert "analyze__existing_building_statistics" in hint
+    assert "여기 뭐야" not in hint  # _address_display_hint로 새지 않음
+
+
+def test_routing_hint_direct_address_strong_stats_beats_detail():
+    """'건물통계 분석해줘' → strong STATS가 DETAIL(분석)보다 우선."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "역삼동 123-45 건물통계 분석해줘"},
+    ])
+    assert hint is not None
+    assert "bucket=기존 건축물 통계 조회" in hint
+    assert "analyze__existing_building_statistics" in hint
+
+
+def test_routing_hint_soft_summary_stays_parcel_detail():
+    """'분석 요약' → soft(요약)이 DETAIL을 가로채지 않음 → 상세 검토 유지."""
+    hint = build_routing_hint([
+        {"role": "user", "content": "역삼동 123-45 분석 요약해줘"},
+    ])
+    assert hint is not None
+    assert "bucket=단일 필지 상세 검토" in hint
+    assert "기존 건축물 통계 조회" not in hint

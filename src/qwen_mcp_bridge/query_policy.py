@@ -83,10 +83,16 @@ def build_routing_hint(
         # risk · detail은 nearby보다 우선 — 단, "근처/주변"이 함께 있으면 nearby로 양보.
         if _RISK_RE.search(text) and not _NEARBY_RE.search(text):
             return _address_risk_hint(text, address)
+        # 강한 통계 명사는 DETAIL보다 우선 — "건물통계 분석/차트"가 parcel_detail/display로 새지 않게.
+        if _STATS_STRONG_RE.search(text) and not _NEARBY_RE.search(text):
+            return _existing_stats_hint(text, "address", address, "300")
         if (_DETAIL_RE.search(text) or _FEASIBILITY_RE.search(text)) and not _NEARBY_RE.search(text):
             return _address_detail_hint(text, address)
         if _NEARBY_RE.search(text):
             return _address_nearby_hint(text, address)
+        # 약한 통계 포함 — DETAIL·NEARBY가 아니면 통계로(현황/요약 등). DISPLAY보다 우선.
+        if _STATS_RE.search(text):
+            return _existing_stats_hint(text, "address", address, "300")
         if _DISPLAY_RE.search(text):
             return _address_display_hint(address)
         return _address_anchor_hint(address)
